@@ -1,0 +1,9 @@
+improvements
+- capacitor red-black load cell 50-100uF 
+- capacitor white-green load cell 50-100nF 
+- change soldering that act as antenna : reduce interference
+	- soldier linearly
+	- tape then cover with aluminium foil
+- capacitor 100uF Vcc-Ground
+- ethernet cable instead sync-ground data-ground vcc-ground, one ground only connected at the hx711
+- soldiering esp 

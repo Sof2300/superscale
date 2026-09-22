@@ -1,0 +1,353 @@
+<html>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+* {
+	font-family: Verdana;
+}
+fieldset {border: none;} 
+input, select, textarea, button{font-size:inherit;}
+td {padding:3px}
+input, select {margin-left:3px;margin-right:3px}
+button {margin-left:5px;margin-right:5px}
+table {
+    border:1px solid darkgray ;
+    border-collapse:collapse;
+}
+
+</style>
+
+<script src="Component.js" type="text/javascript"></script>
+<script src="ComponentInteractive.js" type="text/javascript"></script>
+<script src="CommandUI.js" type="text/javascript"></script>
+<script src="PageUI.js" type="text/javascript"></script>
+<!--
+<script src="bundle-min.js" type="text/javascript" ></script>
+-->
+
+
+<script>
+var DEBUGOFFLINE=(location.origin.substr(0,16)=="http://localhost");//(location.origin=="file://");
+
+/*
+<script src="bundle.js" type="text/javascript">< /script>
+*/
+
+/**********************************************/
+/**********************************************/
+
+var geid=document.getElementById.bind(document);
+function loadRemote(addr,f,err){
+	var xhttp = new XMLHttpRequest();
+	xhttp.addEventListener("load", function(){if(this.status!=200) err.bind(this)();else f.bind(this)();});
+	if(err) xhttp.addEventListener("error", err);
+	xhttp.open("GET", addr);
+	xhttp.setRequestHeader('x-Date', Math.floor((new Date().getTime()) / 1000));
+	xhttp.send();
+}
+
+function setDisabledIds(ids,newstate) {
+   // console.log("setDisabledIds "+newstate+" "+ids);
+    for(var k in ids) {
+        var el = geid(ids[k]);
+        if (el) {
+            // iOS FIX: If we disable the focused input, iOS immediately hides the keyboard.
+            // We identify the 'id' input and use readOnly instead of disabled.
+            if (ids[k].indexOf("_input_id") !== -1) {
+                el.readOnly = newstate;
+                el.style.opacity = newstate ? "0.6" : "1"; // Keep visual feedback
+            } else {
+                el.disabled = newstate;
+            }
+        }
+    }
+}
+
+function focusIdField() {
+    // Make sure the UI has been built
+    if (typeof currentcommandUI !== 'undefined' && currentcommandUI && currentcommandUI.commandlineui) {
+        // Fetch the component representing the 'id' field
+        var idComp = currentcommandUI.commandlineui.row.valuecomps["id"];
+        if (idComp && idComp.id) {
+            // Use setTimeout to ensure the DOM is painted and elements are unlocked
+      //      setTimeout(function() {
+                var idEl = geid(idComp.id);
+                if (idEl && !idEl.disabled) {
+                    idEl.focus();
+                    // Move the cursor to the end of the text if there's already a value
+                    if (typeof idEl.setSelectionRange === "function" && idEl.value) {
+                        idEl.setSelectionRange(idEl.value.length, idEl.value.length);
+                    }
+                }
+         //   }, 50);
+        }
+    }
+}
+
+function disenableload(url,idarray,reload=true, custf, custerr){
+    userActionPending = true;
+
+    focusIdField();
+
+    setDisabledIds(idarray,true);
+    function f(){
+        custf.bind(this)();
+        if(reload) setTimeout(function(){enableloadjson(idarray)},200);
+    }
+    function fe(){
+        custerr.bind(this)();
+        if(reload) setTimeout(function(){enableloadjson(idarray)},200);
+    }
+    loadRemote(url,f,fe);
+}
+function enableloadjson(idarray){
+    if(loading) {setDisabledIds(idarray,false);return;} // don't reload if previous load did not finish
+    var timing=new Date().getTime();
+    //	var it=geid("volume");
+    //	if(it) it.style.color="lightgray";
+    loadRemote('/json',function(){
+            setDisabledIds(idarray,false);
+            loading=false;
+            geid("content").disabled=false;
+            console.log('enable json load delay:'+(new Date().getTime()-timing)/1000);
+            reqListener.bind(this)();}
+        ,function(){
+            loading=false;
+            geid("content").disabled=true;
+    });    //stay disabled
+    loading=true;
+}
+
+/*
+var loadJS = function(url, callback, location){
+    //url is URL of external file, implementationCode is the code
+    //to be called from the file, location is the location to
+    //insert the <script> element
+    if(location==null) location =document.getElementsByTagName('head')[0];
+    var scriptTag = document.createElement('script');
+    scriptTag.src = url;
+
+    scriptTag.onload = callback;
+    scriptTag.onreadystatechange = callback;
+
+    location.appendChild(scriptTag);
+    console.log("loading remote script "+url);
+};
+
+function loadMultiJS(files, callback){
+    if(files.length==1) return loadJS(files[0],callback);
+    var f2=files.slice(1,files.length);
+    loadJS(files[0],function(){
+        loadMultiJS(f2, callback);
+    });
+}
+*/
+
+//var substrates= "substrate/sawdust, substrate/finetourikis, substrate/finepeami, substrate/bran, substrate/alphalpha, substrate/gypsum";
+//var commands="harvest, date, species, cancel, comment, spawn, spawn/preparation,"+substrates;
+//var species="POm,HU,LEm", defaultspecies="HU";
+
+var jsonsampledata='{"data":{"date":"10/11/21","id":"A01","command":"substate/strawpellet","argument":"1250"},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":83,"blockdate":"27/10/21","flushes":"[{ts:27/10/21,ts2:29/10/21,val:1005}{ts:10/11/21,val:350}]","flushnumber":2,"history":"27/10/21,A01,species,POm\\n' +
+    '27/10/21,A01,blockdate,27/10/21\\n' +
+    '27/10/21,A01,harvest,850\\n' +
+    '27/10/21,A01,substrate/strawpellet,1250\\n' +
+    '27/10/21,A01,substrate/bran,330\\n' +
+    '27/10/21,A01,cancel,\\n' +
+    '27/10/21,A01,substrate/gypsum,49\\n' +
+    '27/10/21,A01,cancel, substrate/strawpellet\\n' +
+    '29/10/21,A01,harvest,155\\n' +
+    '29/10/21,A01,cancel, harvest\\n' +
+    '10/11/21,A01,harvest,350","id":"A01","species":"POm","formula":"FtSDx6",' +
+    '"totalharvest":1355,"totalsubstrate":1629},"multi":{"1/command":"harvest","2/command":"species","2/argument":"HU","3/command":"blockdate","3/argument":"12/11/21"},' +
+    '"pile":{"p0/0/command":"substrate/strawpellet","p1/0/command":"substrate/bran"},' +
+    '"config":{"boottime":"27/10/21 20:24:17","ip":"192.168.2.15","mdns":"superscale","password":"","ssid":"Bamboo","mode":"ST"},' +
+    '"configstate":{"data-version":2,"fifo":1,"pile":0,"save-on-set":1,"block-generate":1,"multi":1,' +
+    '"free-space":1024024}}';
+    //'{"data":{"date":"15/12/21","id":"A01","command":"harvest","argument":"850"},"config":{"boottime":"16/10/21 20:20:19","ip":"192.168.2.8","1/argument":330,"mdns":"superscale","password":"","ssid":"Bamboo", "mode":"ST"},"blockinfo":{"blockbe":"30","blockdate":"12/10/21","history":"12/10/21 A02 harvest 700\\n12/10/21 A02 harvest 125","id":"A02","species":"LEm","substrate":"Fpx6","totalharvest":"825","totalsubstrate":"1600"},"scale":{"totare":0,"weight":0}}';
+
+
+var pageUI;
+
+function showPage(tobj){
+ //   console.log(jsonsampledata);
+    if(DEBUGOFFLINE) tobj= JSON.parse(jsonsampledata);
+    console.log(tobj);
+	var item = document.getElementById("content");
+	item.textContent="";
+	
+	pageUI=new PageUI(tobj,item);
+
+	ptobj=Object.assign({}, tobj);;
+
+ 	 if(DEBUGOFFLINE) {
+ 	    tobj["scale"]["weight"]="100";
+         tobj["data"]["date"]="";
+         tobj["data"]["argument"]="330";
+         tobj["data"]["command"]="substrate/bran";
+         tobj["data"]["id"]="";
+
+         tobj["blockinfo"]["id"]="";
+         tobj["blockinfo"]["species"]="HU22";
+         tobj["blockinfo"]["formula"]="Ppx6";
+   //      tobj["blockinfo"]["history"]="";
+
+         tobj["config"]["ssid"]="Bamboot";
+         tobj["config"]["mode"]="AP";
+
+         tobj["multi"]={};
+         tobj["configstate"]["free-space"]="2000";
+
+         delete tobj["pile"]["p1/0/command"];
+
+         tobj["configstate"]["pile"]=1;
+         tobj["configstate"]["fifo"]="1";
+
+     //    setInterval(function(){updatePage(tobj);},6000);
+	} 	 
+};
+
+
+function updatePage(tobj){
+ 	 pageUI.update(tobj);
+}
+
+function dataloaded(){
+   // console.log(this.responseText);
+    var jsonstring=this.responseText;
+    while(jsonstring[jsonstring.length-1]=='\n') jsonstring=jsonstring.substr(0,jsonstring.length-1);
+    jsonstring=jsonstring.replace(/\r/g,"");
+    var arr=jsonstring.split("\n");
+    arr.reverse();
+    var nstring=arr.join("\n");
+    geid("tarea").textContent=nstring;
+    pageUI.updateDataFile(jsonstring);
+
+}
+
+var loadingData=false;
+function loadDataFile(){
+    if(loadingData) return; // don't reload if previous load did not finish
+    var timing=new Date().getTime();    //	var it=geid("volume");    //	if(it) it.style.color="lightgray";
+    geid("tarea").disabled=true;
+    loadRemote('data.txt',function(){
+            loadingData=false;
+            geid("tarea").disabled=false;
+            console.log('data load delay:'+(new Date().getTime()-timing)/1000);
+            dataloaded.bind(this)();}
+        ,function(){loadingData=false;geid("content").disabled=true;});    //stay disabled
+    loadingData=true;
+}
+
+var currentversion=-1, loadingversion;
+function updateDataFile(data){
+    if(loadingversion==data["configstate"]["data-version"]) currentversion=loadingversion;
+    if(currentversion!=data["configstate"]["data-version"]) {
+        loadingversion=data["configstate"]["data-version"];
+        loadDataFile();
+    }
+}
+
+function reqListener () {
+//		console.log(this.responseText);
+		var jsonstring=this.responseText;
+        var t = jsonstring.replace(/\r/g, "");
+		t = t.replace(/\n/g, "\\n");
+		var tobj=JSON.parse(t);
+
+        var isFirstLoad = !init;
+
+		if(!init){showPage(tobj);init=true;}
+		else updatePage(tobj);
+		dataobj=tobj;
+        updateDataFile(tobj);
+        // Handle focusing
+        if (isFirstLoad || userActionPending) {
+            focusIdField();
+            userActionPending = false; // Reset the flag
+        }
+	}
+function loadjson(){
+		if(loading) return; // don't reload if previous load did not finish
+		var timing=new Date().getTime();
+		//	var it=geid("volume");
+		//	if(it) it.style.color="lightgray";
+		loadRemote('/json',function(){
+		    loading=false;
+		    geid("content").disabled=false;
+		    console.log('json load delayz:'+(new Date().getTime()-timing)/1000);
+		    reqListener.bind(this)();}
+		,function(){loading=false;geid("content").disabled=true;});    //stay disabled
+		loading=true;
+	}
+var loading=false;
+var init=false, dataobj={};
+var appConfig = null; // Store the config globally
+function startScript() {
+   // loadMultiJS(["Component.js","ComponentInteractive.js","CommandUI.js","PageUI.js"],function(){
+        if(DEBUGOFFLINE) {
+            appConfig = {
+                "mode": "ST",
+                "lastvalnames": ["species", "blockdate", "formula"],
+                "sumnames": ["harvest", "substrate"],
+                "multivalnames": ["spawn"],
+                "defaultcommand": "harvest",
+                "tags":["fruit","sale","flies","spent","contaminated","compost","storage","glifada"]
+            };
+            updateDataFile(JSON.parse(jsonsampledata));showPage();
+            focusIdField();
+            return ;}
+        loading=false;
+    function initApp() {
+            loadjson();
+            var duration = 2000;
+            setInterval(loadjson, duration);
+        }
+
+    // Load config.json first
+    loadRemote('config.json', function() {
+            try {
+                let text=this.responseText
+                while(text.indexOf("//")>=0) { //remove comments like this one, not allowed in json
+                    let start=text.indexOf("//");
+                    let end=text.indexOf("\n",start);
+                    if(end<-1) end=text.length;
+                //    console.log(text.length);
+                    text=text.substring(0,start)+text.substring(end,text.length);
+                 //   console.log(text.length);
+                }
+                appConfig = JSON.parse(text);
+            } catch(e) {
+                console.error("Config parse error", e);
+            }
+            initApp();
+        }, function() {
+            console.error("Config load error");
+            initApp(); // Fallback to starting anyway if it fails
+        });
+    }
+
+
+
+
+</script>
+<div style="float:right;font-size: 80%">
+    <a target="_blank" href="readme.txt">Help</a><br>
+
+    <a target="_blank" href="viz/BlockViz.html">Block Viz </a><br>
+    <a target="_blank" href="data.txt">Data file</a><a target="_blank" href="data.txt" download>(download)</a><br>
+    <a target="_blank" href="stats/edit.html?fileurl=../config.json">Edit config</a> -
+    <a target="_blank" href="stats/stats.html">Stats page</a><br>
+    <a target="_blank" href="stats/price.html">Price calculate page</a>
+
+</div>
+<body onload="startScript()">
+
+
+<h2>SuperScale</h2>
+<fieldset id="content">Loading content...</fieldset>
+<br>
+<label style="font-size:70%;margin-left:15px;color:darkgray;font-weight:bold">Data file :</label>
+<textarea id="tarea" readonly rows=10  style="margin:5px;width:100%;white-space: pre;font-size:70%">
+</textarea>
+</body>
+
+</html>

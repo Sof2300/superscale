@@ -1,0 +1,22 @@
+{
+  "name": "GreenHouse",
+  "search": "fruit !compost !spent",
+  "isAnd": true,
+  "dateFilter": {
+    "enabled": true,
+    "column": "blockdate",
+    "from": "2026-01-01",
+    "to": ""
+  }
+},
+{
+"name": "Storage",
+"search": "stored",
+"isAnd": true,
+"dateFilter": {
+"enabled": true,
+"column": "blockdate",
+"from": "2026-01-01",
+"to": ""
+}
+}

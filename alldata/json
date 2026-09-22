@@ -1,0 +1,14 @@
+{"data":{"date":"","id":"S998","command":"harvest","argument":""},"scale":{"totare":0,"weight":-3},"blockinfo":{"blockbe":"","blockdate":"11/1/25","flushes":[{"ts":"22/7/26","val":"1138"}],"flushnumber":1,"formula":"Pn3x6","history":"22/7/26,S998,species,POm
+22/7/26,S998,blockdate,11/1/25
+22/7/26,S998,formula,Pn3x6
+22/7/26,S998,spawncode,XXXX
+22/7/26,S998,spawn,1/8
+22/7/26,S998,harvest,179
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+22/7/26,S998,harvest,137
+","id":"S998","spawn":"XXXX, 1/8","species":"POm","substrate":"","totalharvest":1138,"totalsubstrate":""},"multi":{"1/argument":"POm","1/command":"species","2/argument":"11/1/25","2/command":"blockdate","3/argument":"Pn3x6","3/command":"formula","4/argument":"XXXX","4/command":"spawncode","5/argument":"1/8","5/command":"spawn"},"pile":{},"config":{"apssid":"SuperScale","boottime":"22/7/26 09:40:45","defaultcommand":"harvest","ip":"192.168.4.1","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"AP","multivalnames":["spawn"],"ssid":"Gardening, cheaper than therapy","sumnames":["harvest","substrate"]},"configstate":{"data-version":7,"fifo":0,"free-space":970752,"multi":0,"pile":0,"save-on-set":0,"block-generate":0}}

@@ -1,0 +1,29 @@
+{
+	/*
+	"lists":{
+		"substrate":["substrate/sawdust", "substrate/finetourikis", "substrate/finepeami", "substrate/strawpellet", "substrate/crownbeechpellet", "substrate/kostawoodchips"]
+	},
+	"groups":{
+		"group1":{"title":"sawdust 100%","short":"SD","conditions":[{"solo":{"list":"substrate","item":"substrate/sawdust"}}]},
+		"group2":{"title":"finetourikis 100%","short":"Ft","conditions":[{"solo":{"list":"substrate","item":"substrate/finetourikis"}}]},
+		"group3":{"title":"finepeami 100%","short":"Fp","conditions":[{"solo":{"list":"substrate","item":"substrate/finepeami"}}]}
+	},*/
+	"groups":{
+		"taggroup":{"title":"species present Group","short":"OldG","conditions":[{"present":{"item":"spawnold"}}]},
+		"nontaggroup":{"title":"species present Group","short":"NonOldG","conditions":[{"absent":{"item":"spawnold"}}]}
+	},
+	"tests":{
+//		"Anova1":{"title":"Substrate Comparison","short":"A1","conditions":[{"present":{"item":"substrate/bran"}}],"groups":["group1","group2","group3"]},
+		"FormT":{"title":"Formula Comparison","short":"FormT","conditions":[],"generate":[{"across":"formula-0"}]},
+		"SpecT":{"title":"Species Comparison","short":"SpecT","conditions":[],"generate":[{"across":"species"}]},
+		"FormPomT":{"title":"Formula Comparison - POm","short":"FPOm","conditions":[{"equal":{"species":"POm"}}],"generate":[{"across":"formula-0"}]},
+		"FormLEmT":{"title":"Formula Comparison - LEm","short":"FLEm","conditions":[{"equal":{"species":"LEm"}}],"generate":[{"across":"formula-0"}]},
+		"FormHUT":{"title":"Formula Comparison - HU","short":"FHU","conditions":[{"equal":{"species":"HU"}}],"generate":[{"across":"formula-0"}]},
+		"FormHEgT":{"title":"Formula Comparison - HEg","short":"FHEg","conditions":[{"equal":{"species":"HEg"}}],"generate":[{"across":"formula-0"}]},
+		"FormPTcT":{"title":"Formula Comparison - PTc","short":"FPTc","conditions":[{"equal":{"species":"PTc"}}],"generate":[{"across":"formula-0"}]},
+		"TagT":{"title":"Old vs without old ","short":"oldT","groups":["taggroup","nontaggroup"]},
+		"SpawnRate":{"title":"Spawn Comparison","short":"SpRate","conditions":[],"generate":[{"across":"spawnrate","step":200}]}
+	}
+}
+
+		 

@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-control" content="public">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>SuperScale Flatten Data</title>
+
+    <style>
+        .pricename {
+            font-size: 80%;
+        }
+
+        .priceval {
+            font-size: 80%;
+        }
+
+        .valclass {
+            width: 97%;
+            margin-top: 7px;
+        }
+
+        .titleclass {
+            font-size: 80%;
+            vertical-align: center;
+            float: right;
+        }
+
+        h1 {
+            font-size: 1.75em;
+            margin: .67em 0;
+        }
+
+        body {
+            font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif;
+        }
+
+        /* --- Table and Search Styles --- */
+        #searchInput {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0 5px 0;
+            box-sizing: border-box;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .search-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.9em;
+        }
+
+        .table-container {
+            margin: 5px 0;
+        }
+
+        #dataTable {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.85em;
+        }
+
+        #dataTable th, #dataTable td {
+            border: 1px solid #ddd;
+            padding: 3px 6px;
+            text-align: left;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        #dataTable th {
+            background-color: #f4f4f4;
+            user-select: none;
+            position: sticky;
+            top: 0;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            z-index: 2;
+        }
+
+        #dataTable th:hover {
+            background-color: #e0e0e0;
+        }
+
+        #dataTable tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+
+    <script>
+        var geid = document.getElementById.bind(document);
+
+        function loadRemote(addr, f, err) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.addEventListener("load", function () { if (this.status != 200) err.bind(this)(); else f.bind(this)(); });
+            if (err) xhttp.addEventListener("error", err);
+            xhttp.open("GET", addr);
+            xhttp.setRequestHeader('x-Date', Math.floor((new Date().getTime()) / 1000));
+            xhttp.send();
+        }
+
+        window.onload = function () {
+            console.log("loading");
+            loadDataFile();
+        };
+
+        var loadingData = false;
+
+        function loadDataFile() {
+            if (loadingData) return;
+            loadingData = true;
+            var timing = new Date().getTime();
+            loadRemote('../data.txt', function () {
+                    loadingData = false;
+                    console.log('data load delay:' + (new Date().getTime() - timing) / 1000);
+                    dataLoaded.bind(this)(this.response);
+                }
+                , function () { loadingData = false; geid("content").disabled = true; });
+        }
+
+        function removeConsecutiveDuplicates(td) {
+            let lines = td.split('\n');
+            let out = [];
+            for (let i = 0; i < lines.length; i++) {
+                if (i === 0 || lines[i] !== lines[i - 1]) {
+                    out.push(lines[i]);
+                }
+            }
+            return out.join('\n');
+        }
+
+        function dataLoaded(tdata) {
+            geid("textcontent").value = tdata;
+
+            setTimeout(() => {
+                let tdata2 = removeCancels(tdata);
+                let tdata3 = removeConsecutiveDuplicates(tdata2);
+                processData(tdata3);
+            }, 10);
+        }
+
+        function splitIntoLines(td) {
+            let ntd = td.replaceAll("\r", "")
+            return ntd.split("\n");
+        }
+
+        function splitLine(line) {
+            let sub = line.split(",");
+            if (sub.length != 4) {
+                throw new Error("Line has more or less than 4 fields!");
+            }
+            for (let n = 0; n < sub.length; n++) {
+                sub[n] = sub[n].trim();
+            }
+            sub[2] = sub[2].toLowerCase();
+            if (sub[2] == "cancel") sub[3] = sub[3].toLowerCase();
+            return sub;
+        }
+
+        function removeCancels(td) {
+            let tde = splitIntoLines(td);
+            let toremove = new Set();
+
+            for (let r = 0; r < tde.length; r++) {
+                if (tde[r].length == 0) continue;
+                let sub = splitLine(tde[r]);
+
+                if (sub[2] == "cancel") {
+                    for (let k = r - 1; k >= 0; k--) {
+                        if (toremove.has(k)) continue;
+
+                        let ksub = tde[k].split(",");
+                        if (ksub[1] == sub[1] && (ksub[2] == sub[3] || (sub[3] == "" && ksub[2] != "cancel"))) {
+                            toremove.add(k);
+                            toremove.add(r);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (toremove.size > 0) {
+                let out = [];
+                for (let i = 0; i < tde.length; i++) {
+                    if (!toremove.has(i)) out.push(tde[i]);
+                }
+                return out.join("\n");
+            }
+
+            return tde.join("\n");
+        }
+
+        // MOVED 'harvest' to be immediately after Age & BE. Tags will dynamically load AFTER this predefined list.
+        var preorder = ['id', 'species', 'blockdate', 'formula', 'totalsubstrate', 'spawn', 'spawncode', 'Age', 'BE'];
+        var keeplast = ["harvest"];
+        var sums = ["harvest"];
+        var aggregated = { "harvest": 7 };
+        var calculatedfields = { "Age": { "substract": ["now", "blockdate"] }, "BE": { "divide": ["totalharvest", "totalsubstrate"] } };
+        var formulatosubstrate = {
+            "formula":
+                {
+                    "Pn2x7": { "totalsubstrate": "1850" },
+                    "Pn2x6": { "totalsubstrate": "1580" },
+                    "Pn3x7": { "totalsubstrate": "1850" },
+                    "Pcx7": { "totalsubstrate": "1850" },
+                    "Beechx6 2600h2o": { "totalsubstrate": "1580" },
+                    "Beechx6 3000h2o": { "totalsubstrate": "1580" },
+                    "Pn2x5.5": { "totalsubstrate": "1450" },
+                    "Pn3x6": { "totalsubstrate": "1580" },
+                    "BPcx6 unicorn": { "totalsubstrate": "1580" },
+
+                    "Ppx7": { "totalsubstrate": "1850" },
+                    "aPpx7": { "totalsubstrate": "1850" },
+                    "Pcx6": { "totalsubstrate": "1580" },
+                    "Pn2x6": { "totalsubstrate": "1580" },
+                    "Pn3x6": { "totalsubstrate": "1580" },
+                    "Pn310x6": { "totalsubstrate": "1415" },
+                    "Ppx6": { "totalsubstrate": "1580" },
+                    "Ppx5.5": { "totalsubstrate": "1450" },
+                    "bPpx5.5": { "totalsubstrate": "1450" },
+                    "aPpx5.5": { "totalsubstrate": "1450" },
+                    "Kx6": { "totalsubstrate": "1580" },
+                    "SDx6": { "totalsubstrate": "1580" },
+                    "bSDx6": { "totalsubstrate": "1580" },
+                    "Oakx6": { "totalsubstrate": "1580" },
+                    "SFtx6": { "totalsubstrate": "1580" },
+                    "SFtx6plus": { "totalsubstrate": "1580" },
+                    "bSFtx6": { "totalsubstrate": "1580" },
+                    "bSFTx6": { "totalsubstrate": "1580" },
+                    "PpBr20Sg10x5.5": { "totalsubstrate": "1450" },
+                    "SFtBr20Sg10x6plus": { "totalsubstrate": "1580" },
+                    "SFtSgx6plus": { "totalsubstrate": "1580" },
+                }
+        };
+
+        function processData(tdata) {
+            var headers = fetchHeaders(2, tdata);
+            var orderedheaders = preorder.slice();
+            orderedheaders = [...new Set([...orderedheaders, ...headers])]
+
+            let table = buildTable(tdata, orderedheaders, sums, formulatosubstrate);
+
+            window.tableData = table;
+            renderTableHTML();
+        }
+
+        // --- HTML TABLE MULTISORT/SEARCH METHODS ---
+        let currentSort = { col: -1, dir: 1 };
+        let searchDebounceTimeout;
+
+        function renderTableHTML() {
+            let table = document.getElementById("dataTable");
+            let thead = table.getElementsByTagName("thead")[0];
+            let tbody = table.getElementsByTagName("tbody")[0];
+
+            if (!window.tableData || window.tableData.length === 0) return;
+
+            let headers = window.tableData[0];
+            thead.innerHTML = "";
+            let trHeader = document.createElement("tr");
+            for (let i = 0; i < headers.length; i++) {
+                let th = document.createElement("th");
+                th.textContent = headers[i] + (currentSort.col === i ? (currentSort.dir === 1 ? " \u25B2" : " \u25BC") : "");
+                th.style.cursor = "pointer";
+                th.onclick = function () { sortTable(i); };
+                trHeader.appendChild(th);
+            }
+            thead.appendChild(trHeader);
+
+            let frag = document.createDocumentFragment();
+            for (let r = 1; r < window.tableData.length; r++) {
+                let row = window.tableData[r];
+                let tr = document.createElement("tr");
+                let searchableText = "";
+
+                for (let c = 0; c < headers.length; c++) {
+                    let td = document.createElement("td");
+                    let cellVal = row[c];
+                    if (cellVal === undefined || cellVal === null) cellVal = "";
+
+                    td.textContent = cellVal;
+                    searchableText += cellVal + " ";
+                    tr.appendChild(td);
+                }
+
+                tr.dataset.rowtext = searchableText.toLowerCase();
+                frag.appendChild(tr);
+            }
+
+            tbody.innerHTML = "";
+            tbody.appendChild(frag);
+
+            applySearch();
+        }
+
+        function sortTable(colIndex) {
+            if (currentSort.col === colIndex) {
+                currentSort.dir *= -1;
+            } else {
+                currentSort.col = colIndex;
+                currentSort.dir = 1;
+            }
+
+            let headers = window.tableData[0];
+            let rows = window.tableData.slice(1);
+
+            rows.sort((a, b) => {
+                let valA = a[colIndex] !== undefined && a[colIndex] !== null ? a[colIndex].toString().toLowerCase() : '';
+                let valB = b[colIndex] !== undefined && b[colIndex] !== null ? b[colIndex].toString().toLowerCase() : '';
+
+                let isDateStr = (s) => {
+                    let p = s.split('/');
+                    return p.length === 3 && !isNaN(p[0]) && !isNaN(p[1]) && !isNaN(p[2]);
+                };
+                if (isDateStr(valA) && isDateStr(valB)) {
+                    let dA = makeDate(valA).getTime();
+                    let dB = makeDate(valB).getTime();
+                    return (dA - dB) * currentSort.dir;
+                }
+
+                let numA = parseFloat(valA.replace('%', ''));
+                let numB = parseFloat(valB.replace('%', ''));
+                let isA_num = !isNaN(numA) && !isNaN(valA.replace('%', '').trim()) && valA.trim() !== '';
+                let isB_num = !isNaN(numB) && !isNaN(valB.replace('%', '').trim()) && valB.trim() !== '';
+
+                if (isA_num && isB_num) {
+                    return (numA - numB) * currentSort.dir;
+                }
+
+                if (valA < valB) return -1 * currentSort.dir;
+                if (valA > valB) return 1 * currentSort.dir;
+                return 0;
+            });
+
+            window.tableData = [headers, ...rows];
+            renderTableHTML();
+        }
+
+        function handleSearchInput() {
+            clearTimeout(searchDebounceTimeout);
+            searchDebounceTimeout = setTimeout(applySearch, 150);
+        }
+
+        function updateRowCountDisplay(visible, total) {
+            document.getElementById("rowCountDisplay").textContent = `Showing ${visible} of ${total} rows`;
+        }
+
+        function applySearch() {
+            let input = document.getElementById("searchInput").value.toLowerCase();
+            let words = input.split(" ").filter(w => w.trim() !== "");
+            let isAndLogic = document.getElementById("searchLogicAnd").checked;
+
+            let tbody = document.getElementById("dataTable").getElementsByTagName("tbody")[0];
+            let rows = tbody.getElementsByTagName("tr");
+
+            let totalRows = rows.length;
+            let visibleRows = 0;
+
+            for (let i = 0; i < rows.length; i++) {
+                if (words.length === 0) {
+                    rows[i].style.display = "";
+                    visibleRows++;
+                } else {
+                    let rowText = rows[i].dataset.rowtext;
+                    let match = isAndLogic ? true : false;
+                    let validWordsCount = 0;
+
+                    for (let w of words) {
+                        let isNegation = w.startsWith("!");
+                        let searchTerm = isNegation ? w.substring(1) : w;
+
+                        if (searchTerm === "") continue;
+                        validWordsCount++;
+
+                        let containsTerm = rowText.includes(searchTerm);
+                        let conditionMet = isNegation ? !containsTerm : containsTerm;
+
+                        if (isAndLogic) {
+                            if (!conditionMet) {
+                                match = false;
+                                break;
+                            }
+                        } else {
+                            if (conditionMet) {
+                                match = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (validWordsCount === 0) {
+                        match = true;
+                    }
+
+                    rows[i].style.display = match ? "" : "none";
+                    if (match) visibleRows++;
+                }
+            }
+
+            updateRowCountDisplay(visibleRows, totalRows);
+        }
+
+        function tableToCSV(table) {
+            return table.map(rowArray => rowArray.join(",")).join("\r\n");
+        }
+
+        function buildTable(tdata, headers, sums, transform) {
+            var finalheaders = headers.slice();
+            var finaltable = [];
+            finaltable.push(finalheaders);
+            let arr = splitIntoLines(tdata);
+
+            var indexofid = {};
+            var sumlengths = {};
+            for (var r of arr) {
+                if (r.length == 0) continue;
+                let l = splitLine(r);
+
+                if (!(l[1] in indexofid)) {
+                    indexofid[l[1]] = finaltable.length;
+                    var newrow = [];
+                    var idindex = headers.indexOf("id");
+                    if (idindex >= 0) newrow[idindex] = l[1];
+                    finaltable.push(newrow);
+                }
+                var argindex = headers.indexOf(l[2]);
+                if (argindex >= 0) {
+                    if (sums.indexOf(l[2]) >= 0) {
+                        if (finaltable[indexofid[l[1]]][argindex] === undefined) finaltable[indexofid[l[1]]][argindex] = [];
+                        finaltable[indexofid[l[1]]][argindex].push([l[0], l[3]]);
+                    }
+                    else {
+                        let tags=["contaminated","compost","flies","fungus flies","spent", "storage", "fruit", "sale synallois","stored"]
+                        let endval=l[3];
+                        if(tags.indexOf(l[2])>-1) endval=l[2];
+                        finaltable[indexofid[l[1]]][argindex] = endval;
+                    }
+                }
+            }
+
+            for (var r = 1; r < finaltable.length; r++) {
+                for (var f in formulatosubstrate) {
+                    var i = finaltable[0].indexOf(f);
+                    if (i < 0) continue;
+                    let trans = formulatosubstrate[f][finaltable[r][i]];
+                    if (trans === undefined) continue;
+                    for (let p in trans) {
+                        var pi = finaltable[0].indexOf(p);
+                        finaltable[r][pi] = trans[p];
+                    }
+                }
+            }
+
+            for (var r = 1; r < finaltable.length; r++) {
+                for (var s of sums) {
+                    var i = finaltable[0].indexOf(s);
+                    if (i < 0) continue;
+                    let tab = finaltable[r][i];
+                    if (tab === undefined) continue
+                    tab = aggregate(s, tab);
+                    finaltable[r][i] = tab;
+                    var length = tab.length;
+                    sumlengths[s] = length;
+                }
+            }
+
+            let extraheader = {};
+            // Convert sums to total, add count, and expand the trailing columns in-place (pushes tags right)
+            for (var s of sums) {
+                var i = finaltable[0].indexOf(s);
+                if (i >= 0) {
+                    // Renames "harvest" to "totalharvest", removing the raw "harvest" column
+                    finaltable[0][i] = "total" + s;
+                    finaltable = insertColumn(finaltable, i + 1);
+                    finaltable[0][i + 1] = s + "count";
+
+                    // Insert trailing summary columns in-place
+                    finaltable = insertColumn(finaltable, i + 2);
+                    finaltable[0][i + 2] = "last" + s;
+                    finaltable = insertColumn(finaltable, i + 3);
+                    finaltable[0][i + 3] = "last" + s + "date";
+
+                    if (sumlengths[s] > 0) extraheader[s] = i + 4;
+
+                    let currentPos = i + 4;
+                    // Insert dynamic sequential breakdown columns in-place (harvest1, harvest1date, etc.)
+                    for (var suml = 1; suml <= sumlengths[s]; suml++) {
+                        finaltable = insertColumn(finaltable, currentPos);
+                        finaltable[0][currentPos] = s + suml;
+                        currentPos++;
+
+                        finaltable = insertColumn(finaltable, currentPos);
+                        finaltable[0][currentPos] = s + suml + "date";
+                        currentPos++;
+                    }
+                }
+            }
+
+            // Populate the "totalharvest", "harvestcount", and dynamically inserted cells
+            for (var r = 1; r < finaltable.length; r++) {
+                for (var s of sums) {
+                    var i = finaltable[0].indexOf("total" + s);
+                    if (i < 0) continue;
+                    let tab = finaltable[r][i], tsum = 0, ind = 0;
+                    if (tab === undefined) continue;
+                    let lastt;
+
+                    // Fill sequential breakdown columns
+                    for (var t of tab) {
+                        finaltable[r][extraheader[s] + ind * 2] = t[1];
+                        finaltable[r][extraheader[s] + ind * 2 + 1] = t[0];
+                        tsum += Number(t[1]);
+                        ind++;
+                        lastt = t;
+                    }
+
+                    finaltable[r][i] = tsum;
+                    finaltable[r][i + 1] = tab.length;
+
+                    // Fill 'lastharvest' columns
+                    if (lastt) {
+                        finaltable[r][extraheader[s] - 2] = lastt[1];
+                        finaltable[r][extraheader[s] - 1] = lastt[0];
+                    }
+                }
+            }
+
+            // Calculate fields logic (Age, BE)
+            for (var r = 1; r < finaltable.length; r++) {
+                for (var c in calculatedfields) {
+                    var target = finaltable[0].indexOf(c);
+                    if (target < 0) continue;
+                    let op = calculatedfields[c];
+                    let optype = Object.keys(op).pop();
+                    let args = op[optype];
+                    let isdate = false;
+                    for (let a of args) if (isDateField(a)) { isdate = true; break; }
+                    let argvals = [];
+                    function fetchfields(field) {
+                        if (field == "now") return formatDate(new Date());
+                        let findex = finaltable[0].indexOf(field);
+                        return finaltable[r][findex];
+                    }
+                    let stop = false;
+                    for (let a of args) {
+                        let fv = fetchfields(a);
+                        if (fv === undefined) { stop = true; break; }
+                        argvals.push(fv);
+                    }
+                    if (stop) continue;
+                    if (optype == "substract") {
+                        if (isdate) finaltable[r][target] = daysDiff(argvals[0], argvals[1]);
+                        else finaltable[r][target] = argvals[0] - argvals[1];
+                    }
+                    if (optype == "divide") finaltable[r][target] = "" + Math.round(100 * argvals[0] / argvals[1]) + "%";
+                }
+            }
+            return finaltable;
+        }
+
+        function insertColumn(array, index) {
+            for (var r in array) array[r].splice(index, 0, undefined);
+            return array;
+        }
+
+        function formatDate(d) {
+            return "" + d.getDate() + "/" + (d.getMonth() + 1) + "/" + (d.getFullYear() - 2000);
+        }
+
+        function isDateField(text) {
+            if (text.includes("date")) return true;
+            if (text == "now") return true;
+            return false;
+        }
+
+        function makeDate(d) {
+            let nd = new Date(0);
+            if (d === undefined) {
+                console.log();
+            }
+            let datetab = d.split("/");
+            nd.setDate(datetab[0]);
+            nd.setMonth(datetab[1] - 1);
+            nd.setYear("20" + datetab[2]);
+            return nd;
+        }
+
+        function daysDiff(d1, d2) {
+            let diff = (makeDate(d1).getTime() - makeDate(d2).getTime()) / (1000 * 3600 * 24);
+            if (diff < 0) diff = -diff;
+            return Math.floor(diff);
+        }
+
+        function aggregate(name, odata) {
+            function mindist(date, table) {
+                let min;
+                for (let t of table) {
+                    let diff = daysDiff(t[0], date);
+                    if (min === undefined) min = diff;
+                    else if (diff < min) min = diff;
+                }
+                return min;
+            }
+            function mergedata(tab) {
+                let d = 0, v = 0;
+                for (let t of tab) {
+                    if (d == 0 || makeDate(d).getTime() > makeDate(t[0]).getTime()) d = t[0];
+                    v += Number(t[1]);
+                }
+                let date = d;
+                return [date, v];
+            }
+            if (!(name in aggregated)) return odata;
+            if (odata === undefined) {
+                console.log();
+            }
+            var data = odata.slice();
+            var period = aggregated[name];
+            var toaggregate = [], ndata = [];
+            while (data.length > 0) {
+                for (var d = 0; d < data.length; d++) {
+                    if (toaggregate.length == 0) { toaggregate.push(data[d]); data.splice(d, 1); d--; continue; }
+                    var dist = mindist(data[d][0], toaggregate)
+                    if (dist <= period) { toaggregate.push(data[d]); data.splice(d, 1); d--; }
+                }
+                ndata.push(mergedata(toaggregate));
+                toaggregate = [];
+            }
+            return ndata;
+        }
+
+        function fetchHeaders(col, data) {
+            var arr = data.split("\n"), headers = {};
+            for (var r of arr) {
+                if (r.length == 0) continue;
+                var l = r.split(",");
+                headers[l[col]] = 1;
+            }
+            return Object.keys(headers);
+        }
+
+    </script>
+</head>
+
+<body>
+<h1 id="title">SuperScale-BlockViz</h1>
+
+<div class="table-container">
+    <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')..." onkeyup="handleSearchInput()">
+
+    <div class="search-controls">
+        <label>
+            <input type="checkbox" id="searchLogicAnd" onchange="handleSearchInput()">
+            Require ALL conditions (AND logic)
+        </label>
+        <span id="rowCountDisplay">Loading rows...</span>
+    </div>
+
+    <table id="dataTable">
+        <thead>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</div>
+<br>
+<h1 id="title">Data Content</h1>
+<textarea id="textcontent" readonly rows=7 style="margin:5px;width:100%;white-space: pre;">Loading...</textarea><br>
+</body>
+</html>

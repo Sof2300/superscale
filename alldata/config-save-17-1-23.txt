@@ -1,0 +1,1 @@
+{"apssid":"SuperScale","defaultcommand":"harvest","ip":"192.168.4.1","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"password":"seeds freedom","ssid":"Gardening, cheaper than therapy","sumnames":["harvest","substrate"]}

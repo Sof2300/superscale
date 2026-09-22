@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="BlockVizDataProcess.js"></script>
+    <script src="BlockVizCommon.js"></script>
+
+    <title>Graphic View - Saved Requests</title>
+
+    <style>
+        body { font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif; padding: 20px; background-color: #f0f2f5; color: #333; }
+
+        /* Header styling */
+        .page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .nav-buttons { display: flex; gap: 10px; }
+        .nav-buttons a { background: #0056b3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
+        .nav-buttons a:hover { background: #004494; }
+        .nav-buttons a.secondary { background: #666; }
+        .nav-buttons a.secondary:hover { background: #444; }
+
+        /* Request Box Container */
+        .request-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #e1e4e8; }
+
+        .request-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px; }
+        .request-title { display: flex; align-items: center; gap: 15px; margin: 0; font-size: 1.4em; color: #1a1a1a; }
+        .query-badge { font-size: 0.55em; font-weight: normal; color: #555; background: #e9ecef; padding: 5px 12px; border-radius: 20px; border: 1px solid #ced4da; }
+
+        /* Summary Bar */
+        .summary-stats { display: flex; gap: 20px; font-size: 0.9em; font-weight: bold; color: #444; }
+        .stat-item { background: #f8f9fa; padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; }
+
+        /* Grid for Blocks */
+        .block-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(55px, 1fr)); gap: 8px; margin-top: 15px; }
+
+        /* Individual Block Square */
+        .block-square {
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+            width: 100%; aspect-ratio: 1;
+            border-radius: 8px; border: 2px solid rgba(0,0,0,0.1);
+            font-size: 0.75em; font-weight: bold; color: rgba(0,0,0,0.7);
+            cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: all 0.15s ease-in-out;
+            overflow: hidden;
+        }
+        .block-square:hover { transform: scale(1.15); z-index: 10; border-color: #333; box-shadow: 0 5px 15px rgba(0,0,0,0.3); color: #000; }
+
+        .empty-state { color: #888; font-style: italic; padding: 10px 0; }
+
+        /* Floating Tooltip */
+        #customTooltip {
+            display: none; position: absolute; z-index: 10000;
+            background: rgba(20, 20, 20, 0.95); color: #fff;
+            padding: 12px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            pointer-events: none; font-size: 0.85em; min-width: 150px; line-height: 1.4;
+        }
+        #customTooltip strong { color: #bce8f1; }
+    </style>
+
+    <script>
+        let parsedTableData = [];
+
+        $(document).ready(function() {
+            let savedDataRaw = localStorage.getItem('savedRequests');
+            let savedRequests = savedDataRaw ? JSON.parse(savedDataRaw) : [];
+            savedRequests.sort((a, b) => a.name.localeCompare(b.name));
+
+            if(savedRequests.length === 0) {
+                $('#requestsContainer').html('<p>No requests saved yet. Go to the main view to save some.</p>');
+                return;
+            }
+
+            // 1. Fetch Data
+            var xhttp = new XMLHttpRequest();
+            xhttp.addEventListener("load", function () {
+                if (this.status == 200) {
+                    let tdata2 = removeCancels(this.response);
+                    let tdata3 = removeConsecutiveDuplicates(tdata2);
+
+                    var headers = fetchHeaders(2, tdata3);
+                    var orderedheaders = preorder.slice();
+                    orderedheaders = [...new Set([...orderedheaders, ...headers])];
+
+                    parsedTableData = buildTable(tdata3, orderedheaders, sums, formulatosubstrate);
+
+                    // 2. Render Graphics
+                    renderGraphicUI(savedRequests);
+                }
+            });
+            xhttp.open("GET", "../dataSub.txt");
+            xhttp.send();
+
+            // Tooltip Interaction
+            $(document).on('mouseenter', '.block-square', function(e) {
+                $('#customTooltip').html($(this).data('info')).show();
+            }).on('mousemove', '.block-square', function(e) {
+                $('#customTooltip').css({ top: e.pageY + 15, left: e.pageX + 15 });
+            }).on('mouseleave', '.block-square', function() {
+                $('#customTooltip').hide();
+            });
+        });
+
+        // Independent JS Filtering Logic (Matches DataTables extension exactly)
+        function filterRows(rows, headers, req) {
+            return rows.filter(row => {
+                let input = (req.search || "").toLowerCase();
+                let allChecks = [];
+                let conditionRegex = /([a-z0-9_]+)\s*(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?|empty)/gi;
+
+                input = input.replace(conditionRegex, function(match, colName, op, val) {
+                    let isMissing = (val.toLowerCase() === 'empty');
+                    allChecks.push({ type: 'numeric', col: colName.toLowerCase(), op: op, val: isMissing ? 'empty' : parseFloat(val) });
+                    return "";
+                });
+
+                let words = input.split(/\s+/).filter(w => w.trim() !== "");
+                for (let w of words) {
+                    let isNegation = w.startsWith("!");
+                    let searchTerm = isNegation ? w.substring(1) : w;
+                    if (searchTerm !== "") allChecks.push({ type: 'text', term: searchTerm, isNegation: isNegation });
+                }
+
+                if (allChecks.length > 0) {
+                    let rowText = row.join(" ").toLowerCase();
+                    let matchText = req.isAnd ? true : false;
+
+                    for (let check of allChecks) {
+                        let conditionMet = false;
+                        if (check.type === 'numeric') {
+                            let colIndex = headers.findIndex(h => h.toLowerCase() === check.col);
+                            if (colIndex >= 0) {
+                                let cellValue = row[colIndex];
+                                let isEmpty = (cellValue === undefined || cellValue === null || String(cellValue).trim() === "");
+
+                                if (check.val === 'empty') {
+                                    if (check.op === '==') conditionMet = isEmpty;
+                                    else if (check.op === '!=') conditionMet = !isEmpty;
+                                } else if (!isEmpty) {
+                                    let numVal = typeof cellValue === 'string' && cellValue.endsWith('%') ? parseFloat(cellValue) : Number(cellValue);
+                                    if (!isNaN(numVal)) {
+                                        if (check.op === '==') conditionMet = (numVal === check.val);
+                                        else if (check.op === '!=') conditionMet = (numVal !== check.val);
+                                        else if (check.op === '<') conditionMet = (numVal < check.val);
+                                        else if (check.op === '<=') conditionMet = (numVal <= check.val);
+                                        else if (check.op === '>') conditionMet = (numVal > check.val);
+                                        else if (check.op === '>=') conditionMet = (numVal >= check.val);
+                                    }
+                                }
+                            }
+                        } else if (check.type === 'text') {
+                            let containsTerm = rowText.includes(check.term);
+                            conditionMet = check.isNegation ? !containsTerm : containsTerm;
+                        }
+
+                        if (req.isAnd) {
+                            if (!conditionMet) { matchText = false; break; }
+                        } else {
+                            if (conditionMet) { matchText = true; break; }
+                        }
+                    }
+                    if (!matchText) return false;
+                }
+
+                if (req.dateFilter && req.dateFilter.enabled) {
+                    let colName = req.dateFilter.column;
+                    let colIndex = headers.indexOf(colName);
+                    if (colIndex >= 0) {
+                        let val = row[colIndex];
+                        if (!val) return false;
+                        let p = String(val).split("/");
+                        if (p.length !== 3) return false;
+                        let rowDate = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+                        if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
+                        if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
+                    }
+                }
+                return true;
+            });
+        }
+
+        // Render the UI
+        function renderGraphicUI(savedRequests) {
+            let container = $('#requestsContainer');
+            container.empty();
+
+            let headers = parsedTableData[0];
+            let dataRows = parsedTableData.slice(1);
+
+            // Helpful indexes
+            let idxId = headers.indexOf("id");
+            let idxSpecies = headers.indexOf("species");
+            let idxBE = headers.indexOf("BE");
+            let idxTotalH = headers.indexOf("totalharvest");
+            let idxAge = headers.indexOf("Age");
+
+            savedRequests.forEach(req => {
+                // Filter rows for this specific request
+                let matchingRows = filterRows(dataRows, headers, req);
+
+                // Calculate Summaries
+                let sumBE = 0, countBE = 0;
+                let sumHarvest = 0, countHarvest = 0;
+
+                let squaresHtml = matchingRows.map(row => {
+                    let bId = row[idxId] || "?";
+                    let species = row[idxSpecies] || "";
+                    let be = row[idxBE];
+                    let harvest = row[idxTotalH];
+                    let age = row[idxAge];
+
+                    // Summarize BE
+                    if (be && typeof be === 'string' && be.endsWith('%')) {
+                        let n = parseFloat(be);
+                        if (!isNaN(n)) { sumBE += n; countBE++; }
+                    }
+                    // Summarize Harvest
+                    if (harvest) {
+                        let n = Number(harvest);
+                        if (!isNaN(n)) { sumHarvest += n; countHarvest++; }
+                    }
+
+                    // Get color (Assumes getSpeciesColor exists in BlockVizCommon)
+                    let bgColor = typeof getSpeciesColor === 'function' ? getSpeciesColor(species) : "#cccccc";
+
+                    // Construct rich tooltip info
+                    let tip = `<strong>ID:</strong> ${bId}<br>
+                               <strong>Species:</strong> ${species}<br>
+                               <strong>Age:</strong> ${age ? age + ' days' : 'N/A'}<br>
+                               <strong>Harvest:</strong> ${harvest ? harvest + 'g' : '0g'}<br>
+                               <strong>BE:</strong> ${be ? be : 'N/A'}`;
+
+                    return `<div class="block-square" style="background-color: ${bgColor};" data-info='${tip.replace(/'/g, "&#39;")}'>
+                                ${bId}
+                            </div>`;
+                }).join("");
+
+                if(matchingRows.length === 0) {
+                    squaresHtml = `<div class="empty-state">No blocks match this query.</div>`;
+                }
+
+                // Summary strings
+                let avgBEStr = countBE > 0 ? (sumBE / countBE).toFixed(1) + "%" : "N/A";
+                let avgHarvStr = countHarvest > 0 ? (sumHarvest / countHarvest).toFixed(1) + "g" : "N/A";
+
+                let searchBadge = req.search ? `<span class="query-badge">Query: <strong>${req.search}</strong></span>` : '';
+
+                let html = `
+                    <div class="request-card">
+                        <div class="request-header">
+                            <h2 class="request-title">
+                                ${req.name} ${searchBadge}
+                            </h2>
+                            <div class="summary-stats">
+                                <div class="stat-item">Total Blocks: ${matchingRows.length}</div>
+                                <div class="stat-item">Avg Yield: ${avgHarvStr}</div>
+                                <div class="stat-item">Avg BE: ${avgBEStr}</div>
+                            </div>
+                        </div>
+                        <div class="block-grid">
+                            ${squaresHtml}
+                        </div>
+                    </div>
+                `;
+                container.append(html);
+            });
+        }
+    </script>
+</head>
+<body>
+
+<div class="page-header">
+    <h1>Graphic View: Saved Requests</h1>
+    <div class="nav-buttons">
+        <a href="SavedRequests.html" class="secondary">🔲 Table View</a>
+        <a href="BlockViz.html">← Main Viz</a>
+    </div>
+</div>
+
+<div id="requestsContainer">
+    <p>Loading blocks...</p>
+</div>
+
+<!-- Floating Tooltip Container -->
+<div id="customTooltip"></div>
+
+</body>
+</html>

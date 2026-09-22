@@ -1,0 +1,419 @@
+
+#ifndef BLOCKINFO_H
+#define BLOCKINFO_H
+
+#include "lib/datastruct/GenString.h"
+
+#define CANCEL_EVENT_NAME "cancel"
+#define HARVEST_EVENT_NAME "harvest"
+#define CUMULATIVE_NAMES_SIZE 2
+#define SUBSTRATE_KEYWORD "substrate"
+
+
+
+
+
+
+
+struct BlockInfo {
+	String id="";
+	String species="";
+	String date="";
+	String history="";
+	String substrate="";
+	int flushes;
+	int totalharvest;
+	int totalsubstrate;
+	int firstflushharvest;
+
+
+	void clear(){
+//		Serial.println("Clearing blockInfo");
+		id="";
+		species="";
+		date="";
+		history="";
+		substrate="";
+		flushes=0;
+		totalharvest=0;
+		totalsubstrate=0;
+		firstflushharvest=0;
+	}
+	String getString(String varname){
+		if(varname=="species") return species;
+		if(varname=="data") return date;
+		if(varname=="id") return id;
+		if(varname=="substrate") return id;
+	}
+	int getInt(String varname){
+		if(varname=="flushes") return flushes;
+		if(varname=="totalharvest") return totalharvest;
+		if(varname=="firstflushharvest") return firstflushharvest;
+		if(varname=="totalsubstrate") return totalsubstrate;
+
+		if(varname=="totalBE") {
+			if(totalsubstrate==0) return 0;
+			float f=100.0*totalharvest/totalsubstrate;
+			if(f<0) f=-f;
+			return (int)f;
+		}
+		if(varname=="firstflushBE") {
+			if(totalsubstrate==0) return 0;
+			return 100*firstflushharvest/totalsubstrate;
+		}
+		return -1;
+	}
+	bool hasCommand(String comm){
+		if(comm==history.substring(0,comm.length())) return true;
+		bool b= history.indexOf(String()+" "+comm)>-1;
+		return b;
+	}
+
+};
+
+
+void extractIDlist(String id, String *idlist){
+	if(!idlist) return;		//		Serial.println(String()+"Logger::extractIDlist: start "+id);
+	if(idlist->length()>0){			//			Serial.println(String()+"Logger::extractIDlist: not first occurrence of "+id);
+		bool found=false;
+		int i = idlist->indexOf(","), j=0;
+		while (i>=0) {
+			String sub=idlist->substring(j,i);				//				Serial.println(String()+"Logger::extractIDlist: sub "+sub);
+			if(sub==id) {found=true;break;}
+			j=i+1;i = idlist->indexOf(",",j);
+		}
+		String sub=idlist->substring(j);			//			Serial.println(String()+"Logger::extractIDlist: sub "+sub);
+		if(sub==id) found=true;			//			Serial.println(String()+"Logger::extractIDlist: sub "+sub+" id "+id+" found "+found);
+		if(!found) {				//				Serial.println(String()+"Logger::extractIDlist: updating idlist '"+idlist+"' with "+id);
+			*idlist+=String()+","+id;	//here repla
+		}
+	}
+	else *idlist=id;		//		Serial.println(String()+"Logger::extractIDlist: end:"+idlist);
+}
+
+int getArgumentInt(String argument, bool *valid=0){
+	if(isDigit(argument))  {if(valid) *valid=true;return argument.toInt();}
+	if(argument.indexOf(",")>-1) {
+		int n=tokenNumber(argument,",");
+		for(int j=0;j<n;j++) {
+			String s=getToken(argument,",",j);
+			if(isDigit(s.c_str())) {	//				Serial.println(String()+"Logger::extractSums: blockinfo.sums[i]:"+blockinfo.sums[i]+" s.toFloat()"+s.toFloat());
+				if(valid) *valid=true;
+				return s.toInt();
+			}
+		}
+	}
+	return 0;
+};
+char linesep='\n', cellsep=',';
+String parseId(String line){	// parse id in a line of data -> first cell
+	int tsend=line.indexOf(cellsep,0);
+
+	String ts=line.substring(0,tsend);
+	int idend=line.indexOf(cellsep,tsend+1);
+	String nid=line.substring(tsend+1,idend);
+	return nid;
+}
+
+struct Flush{
+	unsigned long ts=0;
+	unsigned long ts2=0;
+	int value=0;
+
+	Flush(unsigned long ts0, unsigned long ts20, int v0):ts(ts0), ts2(ts20), value(v0){};
+	Flush(){};
+	Flush(String sts,int v){
+		ts=tsFromString(sts);
+		ts2=ts;
+		value=v;
+	}
+	String toString(){ String str=String()+"["+String(ts)+" - "+String(ts2)+"] : "+value ;return str;}
+	unsigned long getDiff(unsigned long t1, unsigned long t2){
+		unsigned long diffts=t2-t1;
+		if(t1>t2) diffts=t1-t2;
+//		Serial.println(String()+"Flush::getDiff diff:"+diffts);
+		return diffts;
+
+	}
+	bool overlap(Flush *f, unsigned long tolerance){
+//		Serial.println(String()+"Flush::overlap tolerance:"+tolerance+" f->ts:"+f->ts+" f->ts2:"+f->ts2+" ts:"+ts+" ts2:"+ts2);
+		if(!f) return false;
+		if(getDiff(f->ts,ts)<tolerance) return true;
+		if(getDiff(f->ts,ts2)<tolerance) return true;
+		if(getDiff(f->ts2,ts2)<tolerance) return true;
+		if(getDiff(f->ts2,ts)<tolerance) return true;
+//		Serial.println(String()+"Flush::overlap false");
+		return false;
+	}
+	Flush mergedWith(Flush *f){	// will take min of mins and max of maxs and sum of value
+		if(!f) return *this;
+//		Serial.println(String()+"Flush::mergeWith f->ts:"+f->ts+" f->ts2:"+f->ts2+" ts:"+ts+" ts2:"+ts2);
+		Flush f3=Flush(ts,ts2,value+f->value);
+		if(f3.ts>f->ts) f3.ts=f->ts;
+		if(f3.ts2<f->ts2) f3.ts2=f->ts2;
+//		Serial.println(String()+"Flush::mergeWith f3->ts:"+f3.ts+" f3->ts2:"+f3.ts2);
+		return f3;
+	}
+};
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+class BlockInfoReader {
+	BlockInfo localblockinfo;
+	BlockInfo *blockinfo=&localblockinfo;
+
+	std::map<String,String> varmap;
+	std::vector<String> substrateorder;
+	std::vector<Flush> flushes;
+
+	String cumulativenames[CUMULATIVE_NAMES_SIZE]={HARVEST_EVENT_NAME,SUBSTRATE_KEYWORD};
+	char linehistsep='\n';
+	String varhistsep=",", displayvarhistsep=" ";
+	char subvarsep=';',subargsep=',', subkeyvalsep=':';
+	unsigned long flushts=0;
+	unsigned int maxflushdays=7;
+	String localhistory;
+
+public:
+	BlockInfo *getBlockInfo(){return blockinfo;}
+	std::map<String,String> getMap(){return varmap;};
+
+	BlockInfoReader(){blockinfo=&localblockinfo;};
+
+	void insertHistory(String ts, String id, String command, String argument){
+		if(!blockinfo) return;
+//		Serial.println(String()+"BlockInfoReader::insertHistory:'"+ts+"' '"+id+"' '"+command+"' '"+argument+"'");
+
+		String ots=ts;
+		//	ts=ts.substring(0,ts.lastIndexOf("/")); // remove year to fit in tft
+//		 		Serial.println(String()+"Logger::insertHistory: history0 '"+blockinfo->history+"'");
+		blockinfo->history=blockinfo->history+makeHistoryLine(ts,id,command,argument);//ts+" "+command+" "+ argument+linehistsep;//		Serial.println(String()+"insertHistory:: ts2:"+ts);
+// 		Serial.println(String()+"Logger::insertHistory: history1 '"+blockinfo->history+"'");
+	}
+
+	void init(String id, BlockInfo *blockinfo1=0){
+	 	if(!blockinfo1) blockinfo=&localblockinfo;
+		else blockinfo=blockinfo1;
+		//blockinfo=&localblockinfo;
+	 	clear();
+		blockinfo->id=id;
+	}
+
+	void clear(){
+	 	varmap.clear();
+ 		substrateorder.clear();
+		blockinfo->clear();
+		localhistory="";
+		flushes.clear();
+	}
+
+	void end(){
+//	 	Serial.println(String()+"BlockInfoReader::end: history:'"+localblockinfo.history+"'");
+		if(!blockinfo) return;
+		//	 		Serial.println(String()+"BlockInfoReader::close: history:'"+localblockinfo.history+"'");
+		applyCancels();
+//	 	 		Serial.println(String()+"BlockInfoReader::close: history post cancels:'"+blockinfo->history+"'");
+		calculateVars();
+		copytoblockinfo();
+	}
+
+	void copytoblockinfo(){
+	//	Serial.println(String()+"BlockInfoReader::copytoblockinfo: "+(unsigned long)blockinfo);
+		if(!blockinfo) return;
+		if(varmap.find("species")!=varmap.end()) blockinfo->species=varmap["species"];
+ 		if(varmap.find("date")!=varmap.end()) blockinfo->date=varmap["date"];
+		if(varmap.find("substrate")!=varmap.end()) blockinfo->substrate=varmap["substrate"];
+		if(varmap.find("flushes")!=varmap.end()) blockinfo->flushes=varmap["flushes"].toInt();
+		if(varmap.find("totalharvest")!=varmap.end()) blockinfo->totalharvest=varmap["totalharvest"].toInt();
+		if(varmap.find("totalsubstrate")!=varmap.end()) blockinfo->totalsubstrate=varmap["totalsubstrate"].toInt();
+		if(varmap.find("firstflushharvest")!=varmap.end()) blockinfo->firstflushharvest=varmap["firstflushharvest"].toInt();
+	}
+
+
+	void parseLine(String id, String line,String *idlist){		//		Serial.println(String()+"Logger::parseLine: id:"+id+" line:"+line);		//	Serial.println(String()+"Logger::loadHistory: nid:"+nid+" id"+id);
+		String nid=parseId(line);
+		if(nid==id)	addHistoryLine(line);
+
+		if(idlist) extractIDlist(nid,idlist);
+	}
+
+	void addHistoryLine(String line){		//		Serial.println(String()+"Logger::parseLine: id:"+id+" line:"+line);		//	Serial.println(String()+"Logger::loadHistory: nid:"+nid+" id"+id);
+		line+=linesep;
+//		Serial.println(String()+"Adding history \n line:"+line);
+		localhistory+=line;
+//		Serial.println(String()+"Adding history localhistory: "+localhistory);
+		}
+
+private:
+
+
+	String makeHistoryLine(String ts, String id, String command, String argument){return ts+displayvarhistsep+command+displayvarhistsep+ argument+linehistsep;}
+	String getHistoryLineTimeStamp(String line){if(tokenNumber(line,varhistsep)>0) return getToken(line,varhistsep,0);else return "";}
+	String getHistoryLineCommand(String line){if(tokenNumber(line,varhistsep)>2) return getToken(line,varhistsep,2);else return "";}
+	String getHistoryLineArgument(String line){
+		int i=0, n=3;
+		while(i>-1 && n>0) {i=line.indexOf(varhistsep,i+1);n--;}
+		if(i>-1) return line.substring(i+1,line.length());
+		return "";
+	}
+
+
+	void applyCancels(){
+		int n=tokenNumber(localhistory,"\n");
+		String res;
+		for(int i=0;i<n;i++) {
+			String line=getToken(localhistory,"\n",i,&res);
+			if(getHistoryLineCommand(line)==CANCEL_EVENT_NAME) {
+				localhistory=res;n--; // remove cancel line
+				String arg=getHistoryLineArgument(line);
+				if(arg.length()>0) { // find the next line with this command and remove it
+					for(int j=i;j<n;j++) {
+						String line2=getToken(localhistory,"\n",i,&res);
+						if(getHistoryLineCommand(line2)==arg) {localhistory=res;n--;break;}	//remove command line
+					}
+				} else {
+					getToken(localhistory,"\n",i,&res);
+					localhistory=res;n--;
+				}
+			}
+		}
+	};
+
+
+	void calculateVars(){
+	//	Serial.println(String()+"BlockInfoReader::calculateVars: calculateVars:"+localhistory);
+
+		int n=tokenNumber(localhistory,"\n");
+		for(int i=0;i<n;i++) {
+//			Serial.println(String()+"BlockInfoReader::calculateVars: preline: "+i+" "+n);
+			String line=getToken(localhistory,"\n",i);
+	//		Serial.println(String()+"BlockInfoReader::calculateVars: line:'"+line+"'");
+			if(line.length()==0) continue;
+		//	Serial.println(String()+"BlockInfoReader::calculateVars: prets:");
+			String ots=getHistoryLineTimeStamp(line);
+//			Serial.println(String()+"BlockInfoReader::calculateVars: pre getHistoryLineCommand:");
+			String command=getHistoryLineCommand(line);
+//			Serial.println(String()+"BlockInfoReader::calculateVars: pre getHistoryLineArgument:");
+			String argument=getHistoryLineArgument(line);
+//			Serial.println(String()+"BlockInfoReader::calculateVars: ts:"+ots+" '"+command+"' '"+argument+"'");
+
+ 	 		if(isCumulative(command)) extractSums(command,argument);
+			else varmap[command]=line;
+//	 		Serial.println(String()+"BlockInfoReader::calculateVars: pre extractFlushes:");
+	 		extractFlushes(command,ots,argument);
+//	 		Serial.println(String()+"BlockInfoReader::calculateVars: pre extractSubstrate:");
+	 		extractSubstrate(command,argument);
+// 	 		Serial.println(String()+"BlockInfoReader::calculateVars: pre makeHistoryLine:"+makeHistoryLine(ots,blockinfo->id,command,argument));
+	 		blockinfo->history=makeHistoryLine(ots,blockinfo->id,command,argument)+blockinfo->history;
+	 	}
+//		Serial.println(String()+"BlockInfoReader::calculateVars: pre sumFlushes");
+ 	  	sumFlushes();
+	 	concludeSubstrate();
+	};
+
+
+
+
+
+	void extractSums(String command, String argument){	// this does sum the harvest and substrate for the block				//		Serial.println(String()+"BlockInfoReader::close: extractSums: command:"+command+" argument:"+argument);
+		String cumname=getCumulative(command);
+		bool valid=false;
+		int argint=getArgumentInt(argument,&valid);
+		if(valid){
+			if(varmap.find(cumname)!=varmap.end()) {
+				if(isDigit(varmap[cumname])){
+					int pre=varmap[cumname].toInt();
+					pre+=argint;	//								Serial.println(String()+"BlockInfoReader::close: extractSums: pre:"+pre+" argint:"+argint);
+					varmap[cumname]=String(pre);
+				} else Serial.println("BlockInfo::extractInfos problem, var not digit");
+			} else {
+				varmap[cumname]=String(argint);
+			}
+		} //else Serial.println(String()+"BlockInfoReader::close: extractSums: command:"+command+" argument:"+argument);
+		if(String("total")+command!=cumname) varmap[command]=argument;	//save each substrate
+		//	if(command=="harvest" && varmap.find("firstflushharvest")==varmap.end()) varmap["firstflushharvest"]=argument; // first harvest
+	};
+
+
+	void sumFlushes(){
+//		Serial.println("sumFlushes::");
+		int j=flushes.size()-1;
+		while(j>=0) {
+			//int j=flushes.size()-1;
+//			Serial.println(String()+"sumFlushes:: j:"+j+" flushes.size:"+flushes.size());
+//			Serial.println(String()+"sumFlushes:: currentflushj:"+flushes[j].toString());
+			for(int i=0;i<j;i++) {
+				Flush *f=&flushes[i];
+				if(flushes[j].overlap(f,maxflushdays*SECONDSPERDAY)) {flushes[i]=flushes[i].mergedWith(&(flushes[j]));flushes.erase(flushes.begin()+j);break;}
+			}
+			j--;
+		}
+
+		int fflush=0;
+		if(flushes.size()>0) fflush= flushes[0].value;
+ 	//	Serial.println(String()+"sumFlushes:: fflush:"+fflush+" flushes "+flushes.size());
+		varmap["firstflushharvest"]= String(fflush) ;
+		varmap["flushes"]=String(flushes.size());
+		String flushesdates;
+		for(unsigned int i=0;i<flushes.size();i++){
+			if(flushesdates.length()>0) flushesdates+=", ";
+			flushesdates+=getTimeString(flushes[i].ts,true,false,false);
+			if(flushes[i].ts!=flushes[i].ts2) flushesdates+=String()+"-"+getTimeString(flushes[i].ts2,true,false,false);
+		}
+		varmap["flushesdates"]=flushesdates;
+	//	Serial.println(String()+"BlockInfoReader::sumFlushes: flushesdates:"+flushesdates);
+	};
+
+
+	void extractFlushes(String command, String ots, String argument){
+		// if the dates are dispersed, this algo wont work, since it assumes ts are given successively
+//		Serial.println(String()+"extractFlushes:: command:"+command+" argument:"+argument+" ots:"+ots);
+		if(command==HARVEST_EVENT_NAME){
+			int n=tokenNumber(argument,",");
+			if(n>1) for(int i=0;i<n;i++) {
+				String subarg=getToken(argument,",",i);
+				if(isTimeStamp(subarg)) {ots=subarg;break;}
+			}
+	//		Serial.println(String()+"extractFlushes:: ots "+ots);
+			bool valid=false;
+			int argint=getArgumentInt(argument,&valid);
+	//		Serial.println(String()+"extractFlushes:: argument:"+argument+" argint:"+argint+" valid:"+valid);
+			if(valid) flushes.push_back(Flush(ots,argint));
+	//		Serial.println(String()+"extractFlushes:: flushes:"+flushes.size());
+	//		if(flushes.size()>0) Serial.println(String()+"extractFlushes:: lastflush:"+flushes[flushes.size()-1].ts);
+		}
+
+	}
+
+
+	void concludeSubstrate(){
+		String sub;
+		for(String s: substrateorder) {
+			if(varmap.find(s)==varmap.end()) continue;
+			if(sub.length()>0) sub+=subvarsep;
+			sub+=s+subkeyvalsep+varmap[s];
+	//		Serial.println(String()+"BlockInfoReader::concludeSubstrate: s:"+s+" varmap[s]:"+varmap[s]+" sub:"+sub);
+		}
+		varmap[SUBSTRATE_KEYWORD]=sub;
+	}
+
+	void extractSubstrate(String command, String argument){
+		if(command.indexOf(SUBSTRATE_KEYWORD)>-1) {
+			for(String s: substrateorder) if(s==command) return;
+			substrateorder.push_back(command);
+		}
+	}
+
+
+
+	bool isCumulative(String comm){	//contain keywords
+		for(int i=0;i<CUMULATIVE_NAMES_SIZE;i++) if(comm.indexOf(cumulativenames[i])>-1) return true;
+		return false;
+	}
+	String getCumulative(String comm){	//contain keywords
+		for(int i=0;i<CUMULATIVE_NAMES_SIZE;i++) if(comm.indexOf(cumulativenames[i])>-1) return String("total")+cumulativenames[i];
+		return "";
+	}
+
+};
+
+#endif

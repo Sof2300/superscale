@@ -1,0 +1,7 @@
+{	"mode":"ST","password":"seeds freedom","ssid":"Gardening, cheaper than therapy",//"password":"gingembre","ssid":"Bamboo",
+	"lastvalnames" : ["species","blockdate","formula"],// command names for which only the last value is used
+	"sumnames":	["harvest","substrate"], //command names containing this value for which the values are summed
+	"multivalnames": ["spawn"], // command names for which the values are concatened
+	"defaultcommand": "harvest",
+"tags":["fruit","sale","flies","spent","contaminated","compost","storage","glifada"]
+}

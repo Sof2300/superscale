@@ -1,0 +1,35 @@
+[
+	{
+		"title":"Gray Oyster",
+		"price":13,
+		"names":["POm","POn","POpag"]
+	},{
+		"title":"Elm/Golden/Pink Oyster",
+		"price":15,
+		"names":["PCg","PCme","PSn", "HUlc","HU22","HUn","HU24"]
+	},{
+		"title":"Bpearl",
+		"price":17,
+		"names":["Bpearl","BPearl"]
+	},{
+		"title":"King Oyster",
+		"price":18,
+		"names":["PTc","PEtun19","PEcorea", "PEkor", "PEsal"]
+	},{
+		"title":"Chestnut",
+		"price":22,
+		"names":["PAb"]
+	},{
+		"title":"Shiitake/Hericium/Chestnut",
+		"price":22,
+		"names":["HEg","HEn"]
+	},{
+		"title":"Shiitake/Hericium/Chestnut",
+		"price":24,
+		"names":["LEm","LEfr","LE3790","LEn","AA22","PNb","FVn"]
+	},{
+		"title":"Reishi/Trametes",
+		"price":60,
+		"names":["GLg","GLzam","TVt"]
+	} 
+	]

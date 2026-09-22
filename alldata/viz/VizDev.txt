@@ -1,0 +1,39 @@
+Take this code and change it to display something else. At the end, instead of displaying a CVS, we want this code to show a table with a row for each data block, just like the csv would be. This table is multisortable, user can click on a header to make it the sorting criteria. At the top, we have a multi search text field, where user can write words and the table display is restricted to rows containing one of these words.
+
+	PAST
++ performance issue - make the building table as a single string and inject it once with innerHTML instead of appending 3300 rows individually; this batches DOM work and avoids repeated reflows.
+- add a row where you calculate the average value for every column with numerical values. The row to appear just after the headers and before the whole table -> ask gpt
+- chronological restriction - now more complicated. We want to add chronological restriction. We need two date fields, from and to, and a field to select the column it applies to. By default it's blockdate. This time filter is an option of course. And minimum & maximum dates can be used separately, eg show blocks that are have later than a specific blockdate, etc.
+- on click, have the blockinfo of the block as a info bubble
+- make the data content foldable and folded by default
+- colored lines according to species. and bold total harvest, id, and blockdate
+- save a table request & give it a name, autoload automatically, also be able to remove a saved request
+We have the following code. We want to be able to save search table, come back to it later. For now we don't have access to the server, so we'll pretend we save on the server and print to the console. I want you to add a button to save a request. Saved requests will appear on a second page I want you to write as well. Saved requests has names, and can be reedited by user. In the page showing saved requests. They are shown in alphabetical order of their name, as a table. So the page will show multiple tables, one for each saved request. Requests are saved in a file like requests.json, and we can discuss how to fill a dummy one.
+
+- we need to be able to erase a saved request
+- if the tables in saved request page could show by default only 10 items, that would be nice
+- we would like to also be able to search for simple conditions like harvestcount==0 or age<200 or totalharvest>1000, etc. how do you suggest we proceed.
+	how to change my code to make possible this kind of conditions in the search  like harvestcount==0 or age<200 or totalharvest>1000,
+
+- "empty" as value in conditions, and means no value there
+- show the request text after the name 
+- Now we want to make a new page with a graphic version of saved requests. Instead of tables it would show boxes. And inside the boxes, each block is a square with it's ID and color species. The rest, use your imagination.
+- less data
+- infobulle disappeared
+- color GLzam
+
+	CURRENT
+
+
+
+	FUTURE
+
+show the date on table for tags, and change search to find them when searching for tag name
+in tags column, save the date as value
+
+	OPTION
+remove the tags into one 'tags' column ?
+
+	VERY FUTURE
+
+graphic color view

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-control" content="public">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <title>Block Viz</title>
+
+    <style>
+        .pricename { font-size: 80%; }
+        .priceval { font-size: 80%; }
+        .valclass { width: 97%; margin-top: 7px; }
+        .titleclass { font-size: 80%; vertical-align: center; float: right; }
+        h1 { font-size: 1.75em; margin: .67em 0; }
+        body { font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif; }
+
+        #searchInput {
+            width: 100%; padding: 8px; margin: 5px 0 5px 0;
+            box-sizing: border-box; font-size: 15px;
+            border: 1px solid #ccc; border-radius: 4px;
+        }
+
+        .search-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; font-size: 0.9em;
+        }
+
+        .table-container { margin: 5px 0; table-layout: fixed; }
+        #dataTable { width: 100%; font-size: 0.85em; }
+
+        #dataTable th, #dataTable td {
+            border: 1px solid #ddd; padding: 3px 6px;
+            text-align: left; line-height: 1.2;
+            white-space: nowrap; box-sizing: border-box;
+        }
+
+        #dataTable th { background-color: #f4f4f4; user-select: none; position: sticky; top: 0; padding-top: 6px; padding-bottom: 6px; z-index: 2; }
+        #dataTable th:hover { background-color: #e0e0e0; }
+        #dataTable tr:nth-child(even) { background-color: #f9f9f9; }
+
+        thead tr.avgRow th{ position:sticky; top:35px; background:#fff8d5; font-weight:bold; z-index:1; border-top:2px solid #999; }
+        #dataTable tfoot th { position: sticky; top: 35px; background:#fff8d5; font-weight:bold; z-index:3; border-top:2px solid #999; }
+
+        .date-filter-controls { display:flex; gap:15px; align-items:center; margin:10px 0; font-size:0.9em; }
+
+        #blockInfoBubble {
+            display:none; position:absolute; background:white; border:1px solid #888;
+            padding:10px; max-width:600px; max-height:400px; overflow:auto;
+            box-shadow:0 2px 8px rgba(0,0,0,.3); z-index:10000;
+            font-family:monospace; font-size:1.2em; white-space:pre;
+        }
+
+        .data-content-title { font-size: 1em; font-weight: bold; cursor: pointer; margin: 10px 0; }
+        #dataTable td.boldColumn { font-weight: bold; }
+
+        /* --- New Save Request Panel Styles --- */
+        .save-panel {
+            background: #e9f5ff; border: 1px solid #bce8f1; padding: 10px 15px;
+            border-radius: 5px; display: flex; align-items: center; gap: 10px; margin-bottom: 15px;
+        }
+        .save-panel input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 250px; }
+        .save-panel button { padding: 6px 15px; background: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .save-panel button:hover { background: #004494; }
+        .save-panel a { margin-left: auto; font-weight: bold; color: #0056b3; text-decoration: none; }
+        .save-panel a:hover { text-decoration: underline; }
+    </style>
+
+    <script>
+        let blockInfoIndex = {};
+        var geid = document.getElementById.bind(document);
+
+        const speciesColors = {
+            "FVn": "#F3D98A", "POm": "#CFA7F0", "POn": "#B989EA", "POpag": "#A66FE0",
+            "PEtun": "#8CC9FF", "PEcorea": "#63B5FF", "PEsal": "#3EA0F2", "PTc": "#2D8BE0",
+            "Bpearl": "#225EA8", "BPearl": "#225EA8", "PAb": "#F09A3E", "HEg": "#87C96B",
+            "HEn": "#80C98B", "HUn": "#F1E4CC", "HUlcb": "#E3D0B2", "HU22": "#E3D0B2",
+            "LE3790": "#E7D1B8", "LEm": "#D7B38C", "LEfr": "#BF8B5D", "LEn": "#A86F3F",
+            "PCg": "#F0C94E", "PCme": "#F0C94E", "PSn": "#F08FB0", "PSme": "#F08FB0",
+            "Glg": "#D9896B", "Glzam": "#C96D55"
+        };
+
+        function getSpeciesColor(species) { return speciesColors[species] || ""; }
+
+        function loadRemote(addr, f, err) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.addEventListener("load", function () { if (this.status != 200) err.bind(this)(); else f.bind(this)(); });
+            if (err) xhttp.addEventListener("error", err);
+            xhttp.open("GET", addr);
+            xhttp.setRequestHeader('x-Date', Math.floor((new Date().getTime()) / 1000));
+            xhttp.send();
+        }
+
+        window.onload = function () {
+            console.log("loading");
+            loadDataFile();
+        };
+
+        var loadingData = false;
+
+        function loadDataFile() {
+            if (loadingData) return;
+            loadingData = true;
+            loadRemote('../dataSub.txt', function () {
+                    loadingData = false;
+                    dataLoaded.bind(this)(this.response);
+                }
+                , function () { loadingData = false; geid("content").disabled = true; });
+        }
+
+        function removeConsecutiveDuplicates(td) {
+            let lines = td.split('\n'); let out = [];
+            for (let i = 0; i < lines.length; i++) if (i === 0 || lines[i] !== lines[i - 1]) out.push(lines[i]);
+            return out.join('\n');
+        }
+
+        function dataLoaded(tdata) {
+            geid("textcontent").value = tdata;
+            setTimeout(() => {
+                let tdata2 = removeCancels(tdata);
+                let tdata3 = removeConsecutiveDuplicates(tdata2);
+                processData(tdata3);
+            }, 10);
+        }
+
+        function splitIntoLines(td) { return td.replaceAll("\r", "").split("\n"); }
+
+        function splitLine(line) {
+            let sub = line.split(",");
+            if (sub.length != 4) throw new Error("Line has more or less than 4 fields!");
+            for (let n = 0; n < sub.length; n++) sub[n] = sub[n].trim();
+            sub[2] = sub[2].toLowerCase();
+            if (sub[2] == "cancel") sub[3] = sub[3].toLowerCase();
+            return sub;
+        }
+
+        function removeCancels(td) {
+            let tde = splitIntoLines(td);
+            let toremove = new Set();
+            for (let r = 0; r < tde.length; r++) {
+                if (tde[r].length == 0) continue;
+                let sub = splitLine(tde[r]);
+                if (sub[2] == "cancel") {
+                    for (let k = r - 1; k >= 0; k--) {
+                        if (toremove.has(k)) continue;
+                        let ksub = tde[k].split(",");
+                        if (ksub[1] == sub[1] && (ksub[2] == sub[3] || (sub[3] == "" && ksub[2] != "cancel"))) {
+                            toremove.add(k); toremove.add(r); break;
+                        }
+                    }
+                }
+            }
+            if (toremove.size > 0) {
+                let out = [];
+                for (let i = 0; i < tde.length; i++) if (!toremove.has(i)) out.push(tde[i]);
+                return out.join("\n");
+            }
+            return tde.join("\n");
+        }
+
+        var preorder = ['id', 'species', 'blockdate', 'formula', 'totalsubstrate', 'spawn', 'spawncode', 'Age', 'BE', 'harvest'];
+        var keeplast = ["harvest"];
+        var sums = ["harvest"];
+        var aggregated = { "harvest": 7 };
+        var calculatedfields = { "Age": { "substract": ["now", "blockdate"] }, "BE": { "divide": ["totalharvest", "totalsubstrate"] } };
+        var formulatosubstrate = {
+            "formula": { "Pn2x7": { "totalsubstrate": "1850" }, "Pnx6": { "totalsubstrate": "1580" }, "Pn2x6": { "totalsubstrate": "1580" }, "Pn2×6": { "totalsubstrate": "1580" }, "Pn3x7": { "totalsubstrate": "1850" }, "Pcx7": { "totalsubstrate": "1850" }, "Beechx6 2600h2o": { "totalsubstrate": "1580" }, "Beechx6 3000h2o": { "totalsubstrate": "1580" }, "Pn2x5.5": { "totalsubstrate": "1450" }, "Pn3x6": { "totalsubstrate": "1580" }, "BPcx6 unicorn": { "totalsubstrate": "1580" }, "Ppx7": { "totalsubstrate": "1850" }, "aPpx7": { "totalsubstrate": "1850" }, "Pcx6": { "totalsubstrate": "1580" }, "Pn310x6": { "totalsubstrate": "1415" }, "Ppx6": { "totalsubstrate": "1580" }, "Ppx5.5": { "totalsubstrate": "1450" }, "bPpx5.5": { "totalsubstrate": "1450" }, "aPpx5.5": { "totalsubstrate": "1450" }, "Kx6": { "totalsubstrate": "1580" }, "SDx6": { "totalsubstrate": "1580" }, "bSDx6": { "totalsubstrate": "1580" }, "Oakx6": { "totalsubstrate": "1580" }, "SFtx6": { "totalsubstrate": "1580" }, "SFtx6plus": { "totalsubstrate": "1580" }, "bSFtx6": { "totalsubstrate": "1580" }, "bSFTx6": { "totalsubstrate": "1580" }, "PpBr20Sg10x5.5": { "totalsubstrate": "1450" }, "SFtBr20Sg10x6plus": { "totalsubstrate": "1580" }, "SFtSgx6plus": { "totalsubstrate": "1580" } }
+        };
+
+        function processData(tdata) {
+            var headers = fetchHeaders(2, tdata);
+            var orderedheaders = preorder.slice();
+            orderedheaders = [...new Set([...orderedheaders, ...headers])];
+
+            let table = buildTable(tdata, orderedheaders, sums, formulatosubstrate);
+            window.tableData = table;
+            initDataTable();
+        }
+
+        let dataTableInstance = null;
+
+        // 1. Tell DataTables how to use our custom AND/OR & !Exclude logic
+        $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
+            let input = $('#searchInput').val().toLowerCase();
+            let words = input.split(" ").filter(w => w.trim() !== "");
+            if (words.length === 0) return true;
+
+            let isAndLogic = $('#searchLogicAnd').is(':checked');
+            let rowText = searchData.join(" ").toLowerCase();
+
+            let match = isAndLogic ? true : false;
+            let validWordsCount = 0;
+
+            for (let w of words) {
+                let isNegation = w.startsWith("!");
+                let searchTerm = isNegation ? w.substring(1) : w;
+                if (searchTerm === "") continue;
+                validWordsCount++;
+
+                let containsTerm = rowText.includes(searchTerm);
+                let conditionMet = isNegation ? !containsTerm : containsTerm;
+
+                if (isAndLogic) {
+                    if (!conditionMet) return false;
+                } else {
+                    if (conditionMet) { match = true; break; }
+                }
+            }
+            return validWordsCount === 0 ? true : match;
+        });
+
+        $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
+            if (!$('#enableDateFilter').is(':checked')) return true;
+            let columnName = $('#dateFilterColumn').val();
+            let columnIndex = window.tableData[0].indexOf(columnName);
+            if (columnIndex < 0) return true;
+            let value = rowData[columnIndex];
+            if (!value) return false;
+            let rowDate = parseBlockDate(value);
+            if (isNaN(rowDate)) return false;
+            let from = $('#dateFrom').val();
+            if (from && rowDate < new Date(from).getTime()) return false;
+            let to = $('#dateTo').val();
+            if (to && rowDate >= new Date(to).getTime() + 86400000) return false;
+            return true;
+        });
+
+        function parseBlockDate(text){
+            if(!text) return NaN;
+            let p=text.split("/");
+            if(p.length!==3) return NaN;
+            return new Date(2000+Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+        }
+
+        function updateAverageRow() {
+            if (!dataTableInstance) return;
+            const api = dataTableInstance;
+            const rows = api.rows({search:'applied'}).data().toArray();
+            const headers = window.tableData[0];
+            const avgCells = $("#dataTable tfoot th");
+
+            headers.forEach((name, col)=>{
+                if (name === "id") { avgCells.eq(col).text("n=" + rows.length); return; }
+                let sum = 0, count = 0, isPercent = false;
+                rows.forEach(r=>{
+                    let v = r[col];
+                    if (v === undefined || v === null || v === "") return;
+                    if (typeof v === "string" && v.endsWith("%")) {
+                        let n = parseFloat(v);
+                        if (Number.isFinite(n)) { sum += n; count++; isPercent = true; }
+                        return;
+                    }
+                    if (typeof v === "string" && v.match(/^\d+\/\d+\/\d+$/)) return;
+                    if (typeof v === "number") { sum += v; count++; }
+                    else if (typeof v === "string" && v.trim() !== "") {
+                        if (/^-?\d+(\.\d+)?$/.test(v.trim())) { sum += Number(v); count++; }
+                    }
+                });
+                if(count <= 0 || !Number.isFinite(sum / count)){ avgCells.eq(col).text(""); return; }
+                let avg = sum / count;
+                avgCells.eq(col).text(isPercent ? avg.toFixed(1)+"%" : avg.toFixed(1));
+            });
+        }
+
+
+        // 2. Initialize the table
+        function initDataTable() {
+            if (dataTableInstance) {
+                dataTableInstance.destroy();
+                $('#dataTable').empty().append("<tfoot><tr></tr></tfoot>");
+            }
+
+            const headers = window.tableData[0];
+
+            // Build Date Dropdown Options First
+            let dateSelect = $("#dateFilterColumn");
+            dateSelect.empty();
+            headers.forEach(h=>{
+                if(h.includes("date") || h=="blockdate"){
+                    dateSelect.append($("<option>").val(h).text(h));
+                }
+            });
+            dateSelect.val("blockdate");
+
+            // --- LOAD REQUEST SIMULATION ---
+            // If we came from the SavedRequests page, auto-fill inputs before table draw!
+            let params = new URLSearchParams(window.location.search);
+            let loadReq = params.get('loadReq');
+            if (loadReq) {
+                let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
+                let req = saved.find(r => r.name === loadReq);
+                if (req) {
+                    $('#requestName').val(req.name);
+                    $('#searchInput').val(req.search);
+                    $('#searchLogicAnd').prop('checked', req.isAnd);
+                    $('#enableDateFilter').prop('checked', req.dateFilter.enabled);
+                    $('#dateFilterColumn').val(req.dateFilter.column);
+                    $('#dateFrom').val(req.dateFilter.from);
+                    $('#dateTo').val(req.dateFilter.to);
+                }
+            }
+            // -------------------------------
+
+            let dtHeaders = headers.map((h, colIndex) => ({
+                title: h, defaultContent: "",
+                className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
+                render: function (data, type, row) {
+                    if (data == null) return "";
+                    if (h === "BE") {
+                        let num = parseFloat(String(data).replace("%",""));
+                        if (type === "sort" || type === "type") return num;
+                        return data;
+                    }
+                    if (h === "blockdate" || h.endsWith("date")) {
+                        let p = String(data).split("/");
+                        if (p.length === 3) {
+                            let ts = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+                            if (type === "sort" || type === "type") return ts;
+                        }
+                        return data;
+                    }
+                    if (h === "Age" || h === "spawn" || h === "totalsubstrate" || h === "totalharvest" || h === "harvestcount" || /^harvest\d+$/.test(h)) {
+                        let n = Number(data);
+                        if (!isNaN(n) && (type === "sort" || type === "type")) return n;
+                    }
+                    return data;
+                }
+            }));
+
+            let dtData = window.tableData.slice(1);
+            let footerRow = $("#dataTable tfoot tr");
+            headers.forEach(() => { footerRow.append("<th></th>"); });
+
+            dataTableInstance = $('#dataTable').DataTable({
+                data: dtData,
+                columns: dtHeaders,
+                footer: true,
+                deferRender: true,
+                pageLength: 50,
+                dom: '<"top"ilp>rt<"bottom"p><"clear">',
+                order: [],
+                scrollX: false,
+                footerCallback: function () { updateAverageRow(); },
+                drawCallback: function () { updateAverageRow(); },
+                createdRow: function(row, data, dataIndex) {
+                    let speciesIndex = headers.indexOf("species");
+                    let color = getSpeciesColor(data[speciesIndex]);
+                    if(color) $(row).find("td").css("background-color", color);
+                }
+            });
+
+            setTimeout(() => { if (dataTableInstance) dataTableInstance.columns.adjust(); }, 50);
+            setTimeout(() => { if (dataTableInstance) { dataTableInstance.draw(false); updateAverageRow(); } }, 500);
+        }
+
+        // 3. Bind events & Save Feature
+        $(document).ready(function() {
+            $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterColumn, #dateFrom, #dateTo').on('input change', function () {
+                if (dataTableInstance) dataTableInstance.draw();
+            });
+
+            // --- SAVE REQUEST LOGIC ---
+            $('#btnSaveRequest').on('click', function() {
+                let name = $('#requestName').val().trim();
+                if (!name) { alert("Please enter a name for this request!"); return; }
+
+                let requestObject = {
+                    name: name,
+                    search: $('#searchInput').val(),
+                    isAnd: $('#searchLogicAnd').is(':checked'),
+                    dateFilter: {
+                        enabled: $('#enableDateFilter').is(':checked'),
+                        column: $('#dateFilterColumn').val(),
+                        from: $('#dateFrom').val(),
+                        to: $('#dateTo').val()
+                    }
+                };
+
+                // SIMULATE SERVER: Print to console
+                console.log("Simulating server POST to /api/saveRequest.json...");
+                console.log(JSON.stringify(requestObject, null, 2));
+
+                // Save to localStorage for the second page
+                let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
+                let existingIndex = saved.findIndex(r => r.name === name);
+                if (existingIndex >= 0) saved[existingIndex] = requestObject; // Update
+                else saved.push(requestObject); // Create new
+
+                localStorage.setItem('savedRequests', JSON.stringify(saved));
+
+                alert(`Request "${name}" saved successfully!`);
+            });
+            // --------------------------
+
+            $(document).on('click','#dataTable tbody tr',function(e){
+                let row = dataTableInstance.row(this).data();
+                if(!row) return;
+                let id = row[window.tableData[0].indexOf("id")];
+                let info = blockInfoIndex[id];
+                if(!info) return;
+                let bubble=$("#blockInfoBubble");
+                bubble.text(info.join("\n")).css({ left:e.pageX+10, top:e.pageY+10 }).show();
+            });
+
+            $(document).on('click',function(e){
+                if(!$(e.target).closest("#dataTable").length) $("#blockInfoBubble").hide();
+            });
+        });
+
+        // ----------------------------------------------------
+        // --- PREVIOUS buildTable / insertColumn LOGIC BELOW ---
+        // (Omitted for brevity in this response message to fit character limits,
+        //  paste your EXACT SAME buildTable, insertColumn, formatDate, aggregate, fetchHeaders functions here)
+        // ----------------------------------------------------
+
+        function tableToCSV(table) { return table.map(rowArray => rowArray.join(",")).join("\r\n"); }
+        function buildTable(tdata, headers, sums, transform) {
+            // YOUR EXACT CODE REMAINS UNCHANGED HERE
+            var finalheaders = headers.slice(); var finaltable = []; finaltable.push(finalheaders); let arr = splitIntoLines(tdata); var indexofid = {}; var sumlengths = {};
+            for (var r of arr) { if (r.length == 0) continue; let l = splitLine(r); if (!(l[1] in indexofid)) { indexofid[l[1]] = finaltable.length; var newrow = []; var idindex = headers.indexOf("id"); if (idindex >= 0) newrow[idindex] = l[1]; finaltable.push(newrow); } l[2]=l[2].trim(); var argindex = headers.indexOf(l[2]); if (argindex >= 0) { if (sums.indexOf(l[2]) >= 0) { if (finaltable[indexofid[l[1]]][argindex] === undefined) finaltable[indexofid[l[1]]][argindex] = []; finaltable[indexofid[l[1]]][argindex].push([l[0], l[3]]); } else { let tags=["contaminated","compost","flies","fungus flies","spent", "storage", "fruit", "sale synallois","stored"]; let endval=l[3]; if(tags.indexOf(l[2])>-1) endval=l[2]; finaltable[indexofid[l[1]]][argindex] = endval; } } }
+            for (var r = 1; r < finaltable.length; r++) { for (var f in formulatosubstrate) { var i = finaltable[0].indexOf(f); if (i < 0) continue; let trans = formulatosubstrate[f][finaltable[r][i]]; if (trans === undefined) continue; for (let p in trans) { var pi = finaltable[0].indexOf(p); finaltable[r][pi] = trans[p]; } } }
+            for (var r = 1; r < finaltable.length; r++) { for (var s of sums) { var i = finaltable[0].indexOf(s); if (i < 0) continue; let tab = finaltable[r][i]; if (tab === undefined) continue; tab = aggregate(s, tab); finaltable[r][i] = tab; var length = tab.length; if(!sumlengths[s] || sumlengths[s]<length) sumlengths[s] = length; } }
+            let extraheader = {}; for (var s of sums) { var i = finaltable[0].indexOf(s); if (i >= 0) { finaltable[0][i] = "total" + s; finaltable = insertColumn(finaltable, i + 1); finaltable[0][i + 1] = s + "count"; finaltable = insertColumn(finaltable, i + 2); finaltable[0][i + 2] = "last" + s; finaltable = insertColumn(finaltable, i + 3); finaltable[0][i + 3] = "last" + s + "date"; if (sumlengths[s] > 0) extraheader[s] = i + 4; let currentPos = i + 4; for (var suml = 1; suml <= sumlengths[s]; suml++) { finaltable = insertColumn(finaltable, currentPos); finaltable[0][currentPos] = s + suml; currentPos++; finaltable = insertColumn(finaltable, currentPos); finaltable[0][currentPos] = s + suml + "date"; currentPos++; } } }
+            for (var r = 1; r < finaltable.length; r++) { for (var s of sums) { var i = finaltable[0].indexOf("total" + s); if (i < 0) continue; let tab = finaltable[r][i], tsum = 0, ind = 0; if (tab === undefined) continue; let lastt; for (var t of tab) { finaltable[r][extraheader[s] + ind * 2] = t[1]; finaltable[r][extraheader[s] + ind * 2 + 1] = t[0]; tsum += Number(t[1]); ind++; lastt = t; } finaltable[r][i] = tsum; finaltable[r][i + 1] = tab.length; if (lastt) { finaltable[r][extraheader[s] - 2] = lastt[1]; finaltable[r][extraheader[s] - 1] = lastt[0]; } } }
+            for (var r = 1; r < finaltable.length; r++) { for (var c in calculatedfields) { var target = finaltable[0].indexOf(c); if (target < 0) continue; let op = calculatedfields[c]; let optype = Object.keys(op).pop(); let args = op[optype]; let isdate = false; for (let a of args) if (isDateField(a)) { isdate = true; break; } let argvals = []; function fetchfields(field) { if (field == "now") return formatDate(new Date()); let findex = finaltable[0].indexOf(field); return finaltable[r][findex]; } let stop = false; for (let a of args) { let fv = fetchfields(a); if (fv === undefined) { stop = true; break; } argvals.push(fv); } if (stop) continue; if (optype == "substract") { if (isdate) finaltable[r][target] = daysDiff(argvals[0], argvals[1]); else finaltable[r][target] = argvals[0] - argvals[1]; } if (optype == "divide") finaltable[r][target] = "" + Math.round(100 * argvals[0] / argvals[1]) + "%"; } }
+            return finaltable;
+        }
+        function insertColumn(array, index) { for (var r in array) array[r].splice(index, 0, undefined); return array; }
+        function formatDate(d) { return "" + d.getDate() + "/" + (d.getMonth() + 1) + "/" + (d.getFullYear() - 2000); }
+        function isDateField(text) { return text.includes("date") || text == "now"; }
+        function makeDate(d) { let nd = new Date(0); if (d === undefined) { console.log(); } let datetab = d.split("/"); nd.setDate(datetab[0]); nd.setMonth(datetab[1] - 1); nd.setYear("20" + datetab[2]); return nd; }
+        function daysDiff(d1, d2) { return Math.floor((makeDate(d1).getTime() - makeDate(d2).getTime()) / (1000 * 3600 * 24)); }
+        function aggregate(name, odata) { function mindist(date, table) { let min; for (let t of table) { let diff = daysDiff(t[0], date); if (min === undefined || diff < min) min = diff; } return min; } function mergedata(tab) { let d = 0, v = 0; for (let t of tab) { if (d == 0 || makeDate(d).getTime() > makeDate(t[0]).getTime()) d = t[0]; v += Number(t[1]); } return [d, v]; } if (!(name in aggregated) || odata === undefined) return odata; var data = odata.slice(); var period = aggregated[name]; var toaggregate = [], ndata = []; while (data.length > 0) { for (var d = 0; d < data.length; d++) { if (toaggregate.length == 0) { toaggregate.push(data[d]); data.splice(d, 1); d--; continue; } if (mindist(data[d][0], toaggregate) <= period) { toaggregate.push(data[d]); data.splice(d, 1); d--; } } ndata.push(mergedata(toaggregate)); toaggregate = []; } return ndata; }
+        function fetchHeaders(col, data) { var arr = data.split("\n"), headers = {}; for (var r of arr) { if (r.length == 0) continue; headers[r.split(",")[col]] = 1; } return Object.keys(headers); }
+    </script>
+</head>
+
+<body>
+<h1 id="title">SuperScale-BlockViz</h1>
+
+<!-- NEW SAVE PANEL -->
+<div class="save-panel">
+    <strong>Save Custom Search:</strong>
+    <input type="text" id="requestName" placeholder="Name this request (e.g. 'Oysters no flies')">
+    <button id="btnSaveRequest">Save Request</button>
+    <a href="SavedRequests.html">View Saved Requests &rarr;</a>
+</div>
+
+<div class="table-container">
+    <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')...">
+
+    <div class="search-controls">
+        <label>
+            <input type="checkbox" id="searchLogicAnd">
+            Require ALL conditions (AND logic)
+        </label>
+    </div>
+
+    <div class="date-filter-controls">
+        <label><input type="checkbox" id="enableDateFilter"> Date filter</label>
+        <label>Column: <select id="dateFilterColumn"></select></label>
+        <label>From: <input type="date" id="dateFrom"></label>
+        <label>To: <input type="date" id="dateTo"></label>
+    </div>
+
+    <table id="dataTable" class="display" style="width:100%">
+        <tfoot><tr></tr></tfoot>
+    </table>
+</div>
+<br>
+
+<details>
+    <summary class="data-content-title">Data Content</summary>
+    <textarea id="textcontent" readonly rows="7" style="margin:5px;width:100%;white-space:pre;">Loading...</textarea>
+</details>
+<div id="blockInfoBubble"></div>
+</body>
+</html>

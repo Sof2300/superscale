@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-control" content="public">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+    <script src="BlockVizCommon.js"></script>
+    <script src="BlockVizDataProcess.js"></script>
+
+    <title>Block Viz</title>
+
+    <style>
+        .pricename { font-size: 80%; }
+        .priceval { font-size: 80%; }
+        .valclass { width: 97%; margin-top: 7px; }
+        .titleclass { font-size: 80%; vertical-align: center; float: right; }
+        h1 { font-size: 1.75em; margin: .67em 0; }
+        body { font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif; }
+
+        #searchInput {
+            width: 100%; padding: 8px; margin: 5px 0 5px 0;
+            box-sizing: border-box; font-size: 15px;
+            border: 1px solid #ccc; border-radius: 4px;
+        }
+
+        .search-controls {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; font-size: 0.9em;
+        }
+
+        .table-container { margin: 5px 0; table-layout: fixed; }
+        #dataTable { width: 100%; font-size: 0.85em; }
+
+        #dataTable th, #dataTable td {
+            border: 1px solid #ddd; padding: 3px 6px;
+            text-align: left; line-height: 1.2;
+            white-space: nowrap; box-sizing: border-box;
+        }
+
+        #dataTable th { background-color: #f4f4f4; user-select: none; position: sticky; top: 0; padding-top: 6px; padding-bottom: 6px; z-index: 2; }
+        #dataTable th:hover { background-color: #e0e0e0; }
+        #dataTable tr:nth-child(even) { background-color: #f9f9f9; }
+
+        thead tr.avgRow th{ position:sticky; top:35px; background:#fff8d5; font-weight:bold; z-index:1; border-top:2px solid #999; }
+        #dataTable tfoot th { position: sticky; top: 35px; background:#fff8d5; font-weight:bold; z-index:3; border-top:2px solid #999; }
+
+        .date-filter-controls { display:flex; gap:15px; align-items:center; margin:10px 0; font-size:0.9em; }
+
+        #blockInfoBubble {
+            display:none; position:absolute; background:white; border:1px solid #888;
+            padding:10px; max-width:600px; max-height:400px; overflow:auto;
+            box-shadow:0 2px 8px rgba(0,0,0,.3); z-index:10000;
+            font-family:monospace; font-size:1.2em; white-space:pre;
+        }
+
+        .data-content-title { font-size: 1em; font-weight: bold; cursor: pointer; margin: 10px 0; }
+        #dataTable td.boldColumn { font-weight: bold; }
+
+        /* --- New Save Request Panel Styles --- */
+        .save-panel {
+            background: #e9f5ff; border: 1px solid #bce8f1; padding: 10px 15px;
+            border-radius: 5px; display: flex; align-items: center; gap: 10px; margin-bottom: 15px;
+        }
+        .save-panel input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 250px; }
+        .save-panel button { padding: 6px 15px; background: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .save-panel button:hover { background: #004494; }
+        .save-panel a { margin-left: auto; font-weight: bold; color: #0056b3; text-decoration: none; }
+        .save-panel a:hover { text-decoration: underline; }
+    </style>
+
+    <script>
+        let blockInfoIndex = {};
+        var geid = document.getElementById.bind(document);
+
+
+        function loadRemote(addr, f, err) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.addEventListener("load", function () { if (this.status != 200) err.bind(this)(); else f.bind(this)(); });
+            if (err) xhttp.addEventListener("error", err);
+            xhttp.open("GET", addr);
+            xhttp.setRequestHeader('x-Date', Math.floor((new Date().getTime()) / 1000));
+            xhttp.send();
+        }
+
+        window.onload = function () {
+            console.log("loading");
+            loadDataFile();
+        };
+
+        var loadingData = false;
+
+        function loadDataFile() {
+            if (loadingData) return;
+            loadingData = true;
+            loadRemote('../dataSub.txt', function () {
+                    loadingData = false;
+                    dataLoaded.bind(this)(this.response);
+                }
+                , function () { loadingData = false; geid("content").disabled = true; });
+        }
+
+        function removeConsecutiveDuplicates(td) {
+            let lines = td.split('\n'); let out = [];
+            for (let i = 0; i < lines.length; i++) if (i === 0 || lines[i] !== lines[i - 1]) out.push(lines[i]);
+            return out.join('\n');
+        }
+
+        function dataLoaded(tdata) {
+            geid("textcontent").value = tdata;
+            setTimeout(() => {
+                let tdata2 = removeCancels(tdata);
+                let tdata3 = removeConsecutiveDuplicates(tdata2);
+                processData(tdata3);
+            }, 10);
+        }
+
+        let dataTableInstance = null;
+
+        // 1. Tell DataTables how to use our custom AND/OR & !Exclude logic
+        // 1. Tell DataTables how to use our custom AND/OR, !Exclude & Math Logic
+        $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
+            let input = $('#searchInput').val().toLowerCase();
+            let isAndLogic = $('#searchLogicAnd').is(':checked');
+
+            let allChecks = [];
+
+            // 1a. Extract math conditions (e.g., age<200, totalharvest>=1000) using Regex
+            // This allows optional spaces, e.g. "age < 200"
+            let conditionRegex = /([a-z0-9_]+)\s*(==|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?)/gi;
+            input = input.replace(conditionRegex, function(match, colName, op, val) {
+                allChecks.push({
+                    type: 'numeric',
+                    col: colName.toLowerCase(),
+                    op: op,
+                    val: parseFloat(val)
+                });
+                return ""; // Remove condition so it doesn't interfere with regular text search
+            });
+
+            // 1b. Process remaining standard text words
+            let words = input.split(/\s+/).filter(w => w.trim() !== "");
+            for (let w of words) {
+                let isNegation = w.startsWith("!");
+                let searchTerm = isNegation ? w.substring(1) : w;
+                if (searchTerm !== "") {
+                    allChecks.push({ type: 'text', term: searchTerm, isNegation: isNegation });
+                }
+            }
+
+            if (allChecks.length === 0) return true;
+
+            let rowText = searchData.join(" ").toLowerCase();
+            let match = isAndLogic ? true : false;
+            let headers = window.tableData[0];
+
+            // Evaluate all checks (both numeric and text)
+            for (let check of allChecks) {
+                let conditionMet = false;
+
+                if (check.type === 'numeric') {
+                    // Find which column this condition applies to
+                    let colIndex = headers.findIndex(h => h.toLowerCase() === check.col);
+
+                    if (colIndex >= 0) {
+                        let cellValue = rowData[colIndex];
+
+                        // Parse percentage strings properly (like BE="120%")
+                        if (typeof cellValue === 'string' && cellValue.endsWith('%')) {
+                            cellValue = parseFloat(cellValue);
+                        } else {
+                            cellValue = Number(cellValue);
+                        }
+
+                        if (!isNaN(cellValue)) {
+                            if (check.op === '==') conditionMet = (cellValue === check.val);
+                            else if (check.op === '<') conditionMet = (cellValue < check.val);
+                            else if (check.op === '<=') conditionMet = (cellValue <= check.val);
+                            else if (check.op === '>') conditionMet = (cellValue > check.val);
+                            else if (check.op === '>=') conditionMet = (cellValue >= check.val);
+                        }
+                    }
+                } else if (check.type === 'text') {
+                    let containsTerm = rowText.includes(check.term);
+                    conditionMet = check.isNegation ? !containsTerm : containsTerm;
+                }
+
+                // Apply AND / OR logic
+                if (isAndLogic) {
+                    if (!conditionMet) return false;
+                } else {
+                    if (conditionMet) { match = true; break; }
+                }
+            }
+
+            return match;
+        });
+
+        $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
+            if (!$('#enableDateFilter').is(':checked')) return true;
+            let columnName = $('#dateFilterColumn').val();
+            let columnIndex = window.tableData[0].indexOf(columnName);
+            if (columnIndex < 0) return true;
+            let value = rowData[columnIndex];
+            if (!value) return false;
+            let rowDate = parseBlockDate(value);
+            if (isNaN(rowDate)) return false;
+            let from = $('#dateFrom').val();
+            if (from && rowDate < new Date(from).getTime()) return false;
+            let to = $('#dateTo').val();
+            if (to && rowDate >= new Date(to).getTime() + 86400000) return false;
+            return true;
+        });
+
+
+
+
+        // 2. Initialize the table
+        function initDataTable() {
+            if (dataTableInstance) {
+                dataTableInstance.destroy();
+                $('#dataTable').empty().append("<tfoot><tr></tr></tfoot>");
+            }
+
+            const headers = window.tableData[0];
+
+            // Build Date Dropdown Options First
+            let dateSelect = $("#dateFilterColumn");
+            dateSelect.empty();
+            headers.forEach(h=>{
+                if(h.includes("date") || h=="blockdate"){
+                    dateSelect.append($("<option>").val(h).text(h));
+                }
+            });
+            dateSelect.val("blockdate");
+
+            // --- LOAD REQUEST SIMULATION ---
+            // If we came from the SavedRequests page, auto-fill inputs before table draw!
+            let params = new URLSearchParams(window.location.search);
+            let loadReq = params.get('loadReq');
+            if (loadReq) {
+                let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
+                let req = saved.find(r => r.name === loadReq);
+                if (req) {
+                    $('#requestName').val(req.name);
+                    $('#searchInput').val(req.search);
+                    $('#searchLogicAnd').prop('checked', req.isAnd);
+                    $('#enableDateFilter').prop('checked', req.dateFilter.enabled);
+                    $('#dateFilterColumn').val(req.dateFilter.column);
+                    $('#dateFrom').val(req.dateFilter.from);
+                    $('#dateTo').val(req.dateFilter.to);
+                }
+            }
+            // -------------------------------
+
+            let dtHeaders = headers.map((h, colIndex) => ({
+                title: h, defaultContent: "",
+                className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
+                render: function (data, type, row) {
+                    if (data == null) return "";
+                    if (h === "BE") {
+                        let num = parseFloat(String(data).replace("%",""));
+                        if (type === "sort" || type === "type") return num;
+                        return data;
+                    }
+                    if (h === "blockdate" || h.endsWith("date")) {
+                        let p = String(data).split("/");
+                        if (p.length === 3) {
+                            let ts = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+                            if (type === "sort" || type === "type") return ts;
+                        }
+                        return data;
+                    }
+                    if (h === "Age" || h === "spawn" || h === "totalsubstrate" || h === "totalharvest" || h === "harvestcount" || /^harvest\d+$/.test(h)) {
+                        let n = Number(data);
+                        if (!isNaN(n) && (type === "sort" || type === "type")) return n;
+                    }
+                    return data;
+                }
+            }));
+
+            let dtData = window.tableData.slice(1);
+            let footerRow = $("#dataTable tfoot tr");
+            headers.forEach(() => { footerRow.append("<th></th>"); });
+
+            dataTableInstance = $('#dataTable').DataTable({
+                data: dtData,
+                columns: dtHeaders,
+                footer: true,
+                deferRender: true,
+                pageLength: 50,
+                dom: '<"top"ilp>rt<"bottom"p><"clear">',
+                order: [],
+                scrollX: false,
+                footerCallback: function () { updateAverageRow(this.api(), "dataTable", window.tableData[0]); },
+                drawCallback: function () { updateAverageRow(this.api(), "dataTable", window.tableData[0]); },
+                createdRow: function(row, data, dataIndex) {
+                    let speciesIndex = headers.indexOf("species");
+                    let color = getSpeciesColor(data[speciesIndex]);
+                    if(color) $(row).find("td").css("background-color", color);
+                }
+            });
+
+            setTimeout(() => { if (dataTableInstance) dataTableInstance.columns.adjust(); }, 50);
+            setTimeout(() => { if (dataTableInstance) { dataTableInstance.draw(false); updateAverageRow(dataTableInstance, "dataTable", window.tableData[0]); } }, 500);
+        }
+
+        // 3. Bind events & Save Feature
+        $(document).ready(function() {
+            $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterColumn, #dateFrom, #dateTo').on('input change', function () {
+                if (dataTableInstance) dataTableInstance.draw();
+            });
+
+            // --- SAVE REQUEST LOGIC ---
+            $('#btnSaveRequest').on('click', function() {
+                let name = $('#requestName').val().trim();
+                if (!name) { alert("Please enter a name for this request!"); return; }
+
+                let requestObject = {
+                    name: name,
+                    search: $('#searchInput').val(),
+                    isAnd: $('#searchLogicAnd').is(':checked'),
+                    dateFilter: {
+                        enabled: $('#enableDateFilter').is(':checked'),
+                        column: $('#dateFilterColumn').val(),
+                        from: $('#dateFrom').val(),
+                        to: $('#dateTo').val()
+                    }
+                };
+
+                // SIMULATE SERVER: Print to console
+                console.log("Simulating server POST to /api/saveRequest.json...");
+                console.log(JSON.stringify(requestObject, null, 2));
+
+                // Save to localStorage for the second page
+                let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
+                let existingIndex = saved.findIndex(r => r.name === name);
+                if (existingIndex >= 0) saved[existingIndex] = requestObject; // Update
+                else saved.push(requestObject); // Create new
+
+                localStorage.setItem('savedRequests', JSON.stringify(saved));
+
+                alert(`Request "${name}" saved successfully!`);
+            });
+            // --------------------------
+
+            $(document).on('click','#dataTable tbody tr',function(e){
+                let row = dataTableInstance.row(this).data();
+                if(!row) return;
+                let id = row[window.tableData[0].indexOf("id")];
+                let info = blockInfoIndex[id];
+                if(!info) return;
+                let bubble=$("#blockInfoBubble");
+                bubble.text(info.join("\n")).css({ left:e.pageX+10, top:e.pageY+10 }).show();
+            });
+
+            $(document).on('click',function(e){
+                if(!$(e.target).closest("#dataTable").length) $("#blockInfoBubble").hide();
+            });
+        });
+
+         </script>
+</head>
+
+<body>
+<h1 id="title">SuperScale-BlockViz</h1>
+
+<!-- NEW SAVE PANEL -->
+<div class="save-panel">
+    <strong>Save Custom Search:</strong>
+    <input type="text" id="requestName" placeholder="Name this request (e.g. 'Oysters no flies')">
+    <button id="btnSaveRequest">Save Request</button>
+    <a href="SavedRequests.html">View Saved Requests &rarr;</a>
+</div>
+
+<div class="table-container">
+    <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')...">
+
+    <div class="search-controls">
+        <label>
+            <input type="checkbox" id="searchLogicAnd">
+            Require ALL conditions (AND logic)
+        </label>
+    </div>
+
+    <div class="date-filter-controls">
+        <label><input type="checkbox" id="enableDateFilter"> Date filter</label>
+        <label>Column: <select id="dateFilterColumn"></select></label>
+        <label>From: <input type="date" id="dateFrom"></label>
+        <label>To: <input type="date" id="dateTo"></label>
+    </div>
+
+    <table id="dataTable" class="display" style="width:100%">
+        <tfoot><tr></tr></tfoot>
+    </table>
+</div>
+<br>
+
+<details>
+    <summary class="data-content-title">Data Content</summary>
+    <textarea id="textcontent" readonly rows="7" style="margin:5px;width:100%;white-space:pre;">Loading...</textarea>
+</details>
+<div id="blockInfoBubble"></div>
+</body>
+</html>

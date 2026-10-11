@@ -17,6 +17,11 @@
 #define COMMAND_TEXT "command"
 
 #define NOHTML_TEXT "nohtml"
+#define CURRENTMESSAGE_TEXT "currentmessage"
+#define ALLMESSAGES_TEXT "allmessages"
+#define MESSAGE_TEXT_ARG "text"
+#define MESSAGE_DURATION_ARG "duration"
+#define ALLMESSAGES_LIMIT 15
 
 
 // beeps
@@ -30,9 +35,9 @@
 #define ERRORLENGTH 600
 
 #define REQFREQ 660
-#define REQLENGTH 35
+#define REQLENGTH 25
 #define REQJSONFREQ 110
-#define REQJSONLENGTH 15
+#define REQJSONLENGTH 7
 
 #define DEFAULT_COMMAND "defaultcommand"
 #define HARVEST_KEYWORD "harvest"
@@ -41,6 +46,7 @@
 #define CANCEL_TEXT "cancel"
 
 #define BLOCKGENERATE_KEYTEXT "block-generate"
+#define BLOCKRFIDIDSAVE_KEYTEXT "block-rfid-id-save"
 #define SAVEONSET_KEYTEXT "save-on-set"
 #define DATAVERSION_KEYTEXT "data-version"
 #define FREESPACE_KEYTEXT "free-space"
@@ -117,7 +123,7 @@ void statSave(DataManager *dataman);
 class DataManager: public EventListener {
 	DataMap datamap, dataconfigmap, blockinfo, scalemap, configstate;
 	std::vector<String> dataorder;//={"date","id", "command","argument"};
-	std::vector<String> configvars={MULTI_KEYTEXT,PILE_KEYTEXT,SAVEONSET_KEYTEXT,BLOCKGENERATE_KEYTEXT,PILE_FIFO_KEYTEXT};
+	std::vector<String> configvars={MULTI_KEYTEXT,PILE_KEYTEXT,SAVEONSET_KEYTEXT,BLOCKGENERATE_KEYTEXT,BLOCKRFIDIDSAVE_KEYTEXT,PILE_FIFO_KEYTEXT};
 
 	MultiManager multiman;
 	PileManager pileman;
@@ -130,6 +136,12 @@ class DataManager: public EventListener {
 
 	unsigned long lastInteractionTime = 0;
 //	const unsigned long INACTIVITY_TIMEOUT = 3600000;
+
+	String lastPermanentMessage;
+	unsigned long currentMessageAtSec = 0;
+	long currentMessageDuration = 0;
+	unsigned long tempMessageExpireAt = 0;
+	bool tempMessageActive = false;
 
 public:
 	bool fileready=true;
@@ -149,7 +161,7 @@ public:
 	void initRemoteSync(const String &filename){ remoteSyncServer.init(filename); }
 
 	std::vector<GenString> getUrlNames(){
-		std::vector<GenString>vect={"/set","/setBypass","/save","/tare", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/setBypass","/undo","/generateID"},
+		std::vector<GenString>vect={"/set","/setBypass","/save","/tare", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/setBypass","/undo","/generateID","/message","/get","/generateIDGet"},
 				v2=multiman.getUrlNames(), v3=pileman.getUrlNames(), v4=RemoteSyncServer::getUrlNames();
 		for(GenString s:v2) vect.push_back(s);
 		for(GenString s:v3) vect.push_back(s);
@@ -169,6 +181,8 @@ public:
 	void setBlockInfoMan(BlockInfoManager *blockinfomanptr0){blockinfomanptr=blockinfomanptr0;}
 
 	void run() {
+			if (tempMessageActive && (long)(millis() - tempMessageExpireAt) >= 0) expireTempMessage();
+
 			String def=dataconfigmap.get(INACTIVITY_DURATION_SEC_KEYWORD);
 			if(def.length()==0){
 //				Serial.println(String()+"DataManager::Inactivity timeout: def is no good :"+def+" "+INACTIVITY_DURATION_SEC_KEYWORD);
@@ -214,10 +228,15 @@ public:
 		scalemap.set("weight","0");
 		scalemap.set("totare","0");
 
+		configstate.set(CURRENTMESSAGE_TEXT, "");
+		configstate.set(ALLMESSAGES_TEXT, "");
+		resetMessageState();
+
 		configstate.set(MULTI_KEYTEXT,"0");	//should be in another non saved map ?
 
 		configstate.set(SAVEONSET_KEYTEXT,"0");
 		configstate.set(BLOCKGENERATE_KEYTEXT,"0");
+		configstate.set(BLOCKRFIDIDSAVE_KEYTEXT,"0");
 		configstate.set(DATAVERSION_KEYTEXT,"0");
 
 		multiman.loadFromFile();
@@ -311,6 +330,48 @@ public:
 		return changed;
 	}
 
+	std::vector<String> getRequestArgumentKeys(StringMapEvent *se){
+		std::vector<String> keys;
+		String argumentsList = se->get("arguments:");
+		if(argumentsList.length()>0) {
+			int start=0;
+			while(start < argumentsList.length()) {
+				int end=argumentsList.indexOf('\n', start);
+				String line = end >= 0 ? argumentsList.substring(start, end) : argumentsList.substring(start);
+				if(line.length()>0) {
+					int delim=line.indexOf(',');
+					if(delim >= 0) {
+						String key=line.substring(0, delim);
+						if(key.length()>0 && key!="response" && key!="type") keys.push_back(key);
+					}
+				}
+				if(end < 0) break;
+				start=end+1;
+			}
+			if(keys.size()>0) return keys;
+		}
+		for(auto it : se->values) {
+			String key=it.first.c_str();
+			if(key=="response" || key=="type" || key=="arguments:" || key=="params:" || key=="headers:") continue;
+			keys.push_back(key);
+		}
+		return keys;
+	}
+
+	String getArgumentsAsDataKeys(StringMapEvent *se){
+		String response;
+		bool first=true;
+		for(String key : getRequestArgumentKeys(se)) {
+			bool found;
+			String value=get(key,0,&found);
+			if(!found) continue;
+			if(first) first=false;
+			else response+=",";
+			response+="\""+key+"\":\""+jsonEscape(value)+"\"";
+		}
+		return response;
+	}
+
 	bool notify(GenString ename, Event *e){return notify(String(ename.c_str()),e);}
 	bool notify(String ename, Event *e){
 		//Serial.println(String()+"DataManager:notify ename:"+ename);
@@ -321,6 +382,15 @@ public:
 
 		translateArguments(se);
 
+		if(ename==String("/message")) {
+			beepnotify();
+			bool changed=messageRequest(se);
+			String nohtmltext=se->get(NOHTML_TEXT);
+			bool nohtml=false;
+			if(nohtmltext=="1") nohtml=true;
+			reply(changed, se, nohtml);
+			return true;
+		}
 		if(ename==String("/set")) {registerInteraction();
 			beepnotify();
 			bool changed=startsetrequest(se);
@@ -374,7 +444,8 @@ public:
 			beepnotify();
 			bool b=undo();
 			if(!b) beepError();
-		//	Serial.println(String()+"Undo handled");
+			reply(b,se);
+//			Serial.println(String()+"Undo handled");
 			return true;
 		}
 		if(ename==String("/clear")) {registerInteraction();
@@ -397,20 +468,27 @@ public:
 			if(nohtmltext=="1") nohtml=true;
 */			if(!blockinfomanptr) {
 				Serial.println(String()+"DataManager::notify generateID: Error blockinfoptr null!");
-				beepError(); reply(0,se);return true;
+				beepError(); 
+				se->updateValue("response","Error: blockinfoptr null");
+				se->updateValue("type","text/plain");
+				return true;
 			}
 			if(configstate.get(BLOCKGENERATE_KEYTEXT)=="1"){
 				beepnotify();beepnotify();
 				String id=datamap.get(ID_TEXT);
-				replyText(id,se);
-				return false;
+				se->updateValue("response",id.c_str());
+				se->updateValue("type","text/plain");
+				return true;
 			}
 			beepnotify();beepnotify();beepnotify();
 			String cid=datamap.get(ID_TEXT);
 			if(se->get(ID_TEXT).length()>0) cid=se->get(ID_TEXT);
 			if (cid.length()==0) {
 				Serial.println(String()+"DataManager::notify generateID: Error id null!");
-				beepError(); reply(0,se);return true;
+				beepError(); 
+				se->updateValue("response","Error: id null");
+				se->updateValue("type","text/plain");
+				return true;
 			}
 			int i=0;
 			while(!(cid[i] >= '0' && cid[i] <= '9') && i<cid.length()) i++;
@@ -422,7 +500,56 @@ public:
 			se->updateValue(ID_TEXT,newid.c_str());
 //			Serial.println(String()+"DataManager::notify generateID: in se:"+se->get(ID_TEXT));;
 			startsetrequest(se);
-			replyText(newid,se);
+			se->updateValue("response",newid.c_str());
+			se->updateValue("type","text/plain");
+			return true;
+		}
+		if(ename==String("/get")) {
+			beepjsonnotify();
+			String response="{";
+			response+=getArgumentsAsDataKeys(se);
+			response+="}";
+			se->insertValue("response",response.c_str());
+			se->insertValue("type","application/json");
+			return true;
+		}
+		if(ename==String("/generateIDGet")) {registerInteraction();
+			if(!blockinfomanptr) {
+				Serial.println(String()+"DataManager::notify generateIDGet: Error blockinfoptr null!");
+				beepError(); 
+				se->updateValue("response","Error: blockinfoptr null");
+				se->updateValue("type","text/plain");
+				return true;
+			}
+			String newid;
+			if(configstate.get(BLOCKGENERATE_KEYTEXT)=="1"){
+				beepnotify();beepnotify();
+				newid=datamap.get(ID_TEXT);
+			} else {
+				beepnotify();beepnotify();beepnotify();
+				String cid=datamap.get(ID_TEXT);
+				if(se->get(ID_TEXT).length()>0) cid=se->get(ID_TEXT);
+				if (cid.length()==0) {
+					Serial.println(String()+"DataManager::notify generateIDGet: Error id null!");
+					beepError(); 
+					se->updateValue("response","Error: id null");
+					se->updateValue("type","text/plain");
+					return true;
+				}
+				int i=0;
+				while(!(cid[i] >= '0' && cid[i] <= '9') && i<cid.length()) i++;
+				String base=cid.substring(0,i);
+				long highest=blockinfomanptr->findHighestID(base);
+				newid=base+String(highest+1);
+				Serial.println(String()+"DataManager::notify generateIDGet: newid:"+newid);
+				se->updateValue(ID_TEXT,newid.c_str());
+				startsetrequest(se);
+			}
+			String response="{\"id\":\""+jsonEscape(newid)+"\"";
+			response+=getArgumentsAsDataKeys(se);
+			response+="}";
+			se->insertValue("response",response.c_str());
+			se->insertValue("type","application/json");
 			return true;
 		}
 
@@ -474,6 +601,81 @@ private:
 		return true;
 	}
 	 */
+	void resetMessageState(){
+		lastPermanentMessage="";
+		currentMessageAtSec=0;
+		currentMessageDuration=0;
+		tempMessageExpireAt=0;
+		tempMessageActive=false;
+	}
+
+	String jsonEscape(String s){
+		s.replace("\\","\\\\");
+		s.replace("\"","\\\"");
+		s.replace("\n","\\n");
+		s.replace("\r","\\r");
+		return s;
+	}
+
+	String sanitizeMessageText(String text){
+		text.replace("\r"," ");
+		text.replace("\n"," ");
+		return text;
+	}
+
+	void trimAllMessages(){
+		String all=configstate.get(ALLMESSAGES_TEXT);
+		if(all.length()==0) return;
+		std::vector<String> lines=explode(all,String("\n"));
+		if(lines.size()<=ALLMESSAGES_LIMIT) return;
+		String kept="";
+		for(unsigned i=lines.size()-ALLMESSAGES_LIMIT;i<lines.size();i++){
+			if(kept.length()>0) kept+="\n";
+			kept+=lines[i];
+		}
+		configstate.update(ALLMESSAGES_TEXT, kept);
+	}
+
+	void appendAllMessage(unsigned long atSec, String text, long duration){
+		String line=String(atSec)+" | "+text+" | "+String(duration);
+		String all=configstate.get(ALLMESSAGES_TEXT);
+		if(all.length()>0) all+="\n";
+		all+=line;
+		configstate.update(ALLMESSAGES_TEXT, all);
+		trimAllMessages();
+	}
+
+	void expireTempMessage(){
+		tempMessageActive=false;
+		tempMessageExpireAt=0;
+		configstate.update(CURRENTMESSAGE_TEXT, lastPermanentMessage);
+		currentMessageDuration=0;
+		currentMessageAtSec=0;
+	}
+
+	bool messageRequest(StringMapEvent *se){
+		if(!se->exists(MESSAGE_TEXT_ARG)) return false;
+		String text=sanitizeMessageText(se->get(MESSAGE_TEXT_ARG));
+		long duration=0;
+		if(se->exists(MESSAGE_DURATION_ARG)) duration=se->get(MESSAGE_DURATION_ARG).toInt();
+		if(duration<0) duration=0;
+
+		currentMessageAtSec=millis()/1000UL;
+		currentMessageDuration=duration;
+		configstate.update(CURRENTMESSAGE_TEXT, text);
+		appendAllMessage(currentMessageAtSec, text, duration);
+
+		if(duration==0){
+			lastPermanentMessage=text;
+			tempMessageActive=false;
+			tempMessageExpireAt=0;
+		} else {
+			tempMessageActive=true;
+			tempMessageExpireAt=millis()+(unsigned long)duration*1000UL;
+		}
+		return true;
+	}
+
 	bool clear(){
 		bool b=false;
 		for(auto it : *datamap.getMap()) {
@@ -482,6 +684,7 @@ private:
 				if(b2) b=true;
 			}
 		}
+		resetMessageState();
 		return b;
 	}
 
@@ -880,29 +1083,40 @@ public:
 	}
 
 
-	String get(String key, std::map<String,String> *map=0){
+	String get(String key, std::map<String,String> *map=0, bool *foundptr=0){
 		if(map && (map->find(key) != map->end())) {
 			String arg=map->find(key)->second;	//update only those exist already, do not add new keys
 //			Serial.println (String()+"Datamanager:: map get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
 			return arg;
 		} else if(datamap.exists(key)) {
 			String arg=datamap.get(key);	//update only those exist already, do not add new keys
 //						Serial.println (String()+"Datamanager:: datamap get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
 			return arg;
 		} else if(dataconfigmap.exists(key)) {
 			String arg=dataconfigmap.get(key);	//update only those exist already, do not add new keys
 			//			Serial.println (String()+"Datamanager:: dataconfigmap get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
 			return arg;
 		} else if(blockinfo.exists(key)) {
 			String arg=blockinfo.get(key);
 			//			Serial.println (String()+"Datamanager:: blockinfo get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
 			return arg;
 		} else if(scalemap.exists(key)) {
 			String arg=scalemap.get(key);
 			//	Serial.println (String()+"Datamanager:: scalemap get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
+			return arg;
+		} else if(configstate.exists(key)) {
+			String arg=configstate.get(key);
+			//	Serial.println (String()+"Datamanager:: configstate get :"+key+" "+arg);
+			if(foundptr) *foundptr=true;
 			return arg;
 		} else {
 			//			Serial.println (String()+"Datamanager:: no get :"+key);
+			if(foundptr) *foundptr=false;
 			return "";
 		}
 	}
@@ -916,9 +1130,7 @@ public:
 		}
 		else se->updateValue("response","NOTOK");
 	}
-	void replyText(String text,StringMapEvent *se){
-		se->updateValue("response",text.c_str());	// what is this ok used to ? dont remember
-	}
+
 
 
 	String getDataJson(){
@@ -929,7 +1141,6 @@ public:
 			json+=String()+"\""+vn+"\":\""+datamap.get(vn)+"\"";
 			//			Serial.println(String()+"DataManager:getDataJson vn:"+vn+"json so far :"+json);
 		}
-		//		Serial.println(String()+"DataManager:getDataJson json :"+json);
 		json+="}";
 		return json;
 	}
@@ -963,6 +1174,8 @@ public:
 		if(key==PILE_KEYTEXT && val.length()==0) return true;
 		if(key==PILE_FIFO_KEYTEXT && val.length()==0) return true;
 		if(key==MULTI_KEYTEXT && val.length()==0) return true;
+		if(key==BLOCKGENERATE_KEYTEXT && val.length()==0) return true;
+		if(key==BLOCKRFIDIDSAVE_KEYTEXT && val.length()==0) return true;
 		return false;
 	}
 

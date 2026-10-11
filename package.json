@@ -1,0 +1,30 @@
+{
+  "name": "superscale",
+  "version": "1.0.0",
+  "description": "SuperScale is an ESP32-based smart weighing and logging application for small-scale harvesting, markets, and DIY projects. It reads a load cell (HX711), provides a simple local UI (optionally via TFT), physical buttons, and a built-in HTTP server + sync engine to view and manage data from a browser or remote client.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build-viz": "node buildVizFile.js BlockViz.html && node buildVizFile.js SavedRequests.html && node buildVizFile.js SavedRequestsGraphic.html",
+    "build-all": "node buildUI.js && npm run build-viz"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sof2300/superscale.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Sof2300/superscale/issues"
+  },
+  "homepage": "https://github.com/Sof2300/superscale#readme",
+  "dependencies": {
+    "html-minifier-terser": "^7.2.0",
+    "iconv-lite": "^0.7.3",
+    "terser": "^5.51.2"
+  }
+}

@@ -21,15 +21,41 @@
         h1 { font-size: 1.75em; margin: .67em 0; }
         body { font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif; }
 
+        .search-row {
+            display: flex; gap: 10px; align-items: center; margin-bottom: 10px;
+        }
+
         #searchInput {
-            width: 100%; padding: 8px; margin: 5px 0 5px 0;
-            box-sizing: border-box; font-size: 15px;
-            border: 1px solid #ccc; border-radius: 4px;
+            flex: 1; padding: 12px; margin: 0;
+            box-sizing: border-box; font-size: 16px; font-weight: 500;
+            border: 2px solid #999; border-radius: 6px;
+            background-color: #f9f9f9;
+        }
+        #searchInput:focus {
+            outline: none; border-color: #0056b3; background-color: #fff;
         }
 
         .search-controls {
-            display: flex; justify-content: space-between; align-items: center;
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
             margin-bottom: 10px; font-size: 0.9em;
+        }
+
+        .save-section {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px; border: 1px solid #bbb; border-radius: 4px;
+            background-color: #f5f5f5; flex-shrink: 0;
+        }
+        .save-section input[type="text"] {
+            padding: 4px 8px; border: 1px solid #ccc; border-radius: 3px;
+            width: 120px; font-size: 0.9em;
+        }
+        .save-section button {
+            padding: 4px 10px; background: #e0e0e0; color: #555;
+            border: 1px solid #ccc; border-radius: 3px; cursor: pointer;
+            font-size: 0.9em;
+        }
+        .save-section button:hover {
+            background: #d0d0d0;
         }
 
         .table-container { margin: 5px 0; table-layout: fixed; }
@@ -48,7 +74,7 @@
         thead tr.avgRow th{ position:sticky; top:35px; background:#fff8d5; font-weight:bold; z-index:1; border-top:2px solid #999; }
         #dataTable tfoot th { position: sticky; top: 35px; background:#fff8d5; font-weight:bold; z-index:3; border-top:2px solid #999; }
 
-        .date-filter-controls { display:flex; gap:15px; align-items:center; margin:10px 0; font-size:0.9em; }
+        .date-filter-controls { display: none; }
 
         /* --- UPDATED TOOLTIP STYLING TO MATCH GRAPHIC VIEW --- */
         #blockInfoBubble {
@@ -61,14 +87,9 @@
         .data-content-title { font-size: 1em; font-weight: bold; cursor: pointer; margin: 10px 0; }
         #dataTable td.boldColumn { font-weight: bold; }
 
-        .save-panel-links { margin-left: auto; display: flex; gap: 15px; }
+        .save-panel-links { display: flex; gap: 15px; justify-content: flex-end; margin-bottom: 10px; }
         .save-panel-links a { font-weight: bold; color: #0056b3; text-decoration: none; }
         .save-panel-links a:hover { text-decoration: underline; }
-
-        .save-panel { background: #e9f5ff; border: 1px solid #bce8f1; padding: 10px 15px; border-radius: 5px; display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .save-panel input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 250px; }
-        .save-panel button { padding: 6px 15px; background: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        .save-panel button:hover { background: #004494; }
     </style>
 
     <script>
@@ -141,93 +162,8 @@
                 };
             }
 
-            if (!req) return true;
-
-            let input = (req.search || "").toLowerCase();
-            let allChecks = [];
-            let conditionRegex = /([a-z0-9_]+)\s*(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?|empty)/gi;
-
-            input = input.replace(conditionRegex, function(match, colName, op, val) {
-                let isMissing = (val.toLowerCase() === 'empty');
-                allChecks.push({
-                    type: 'numeric', col: colName.toLowerCase(), op: op, val: isMissing ? 'empty' : parseFloat(val)
-                });
-                return "";
-            });
-
-            let words = input.split(/\s+/).filter(w => w.trim() !== "");
-            for (let w of words) {
-                let isNegation = w.startsWith("!");
-                let searchTerm = isNegation ? w.substring(1) : w;
-                if (searchTerm !== "") {
-                    allChecks.push({ type: 'text', term: searchTerm, isNegation: isNegation });
-                }
-            }
-
-            if (allChecks.length > 0) {
-                let rowText = searchData.join(" ").toLowerCase();
-                let matchText = req.isAnd ? true : false;
-                let headers = (typeof parsedTableData !== 'undefined' && parsedTableData[0]) ? parsedTableData[0] : window.tableData[0];
-
-                for (let check of allChecks) {
-                    let conditionMet = false;
-                    if (check.type === 'numeric') {
-                        let colIndex = headers.findIndex(h => h.toLowerCase() === check.col);
-                        if (colIndex >= 0) {
-                            let cellValue = rowData[colIndex];
-                            let isEmpty = (cellValue === undefined || cellValue === null || String(cellValue).trim() === "");
-
-                            if (check.val === 'empty') {
-                                if (check.op === '==') conditionMet = isEmpty;
-                                else if (check.op === '!=') conditionMet = !isEmpty;
-                            } else if (!isEmpty) {
-                                if (typeof cellValue === 'string' && cellValue.endsWith('%')) {
-                                    cellValue = parseFloat(cellValue);
-                                } else {
-                                    cellValue = Number(cellValue);
-                                }
-                                if (!isNaN(cellValue)) {
-                                    if (check.op === '==') conditionMet = (cellValue === check.val);
-                                    else if (check.op === '!=') conditionMet = (cellValue !== check.val);
-                                    else if (check.op === '<') conditionMet = (cellValue < check.val);
-                                    else if (check.op === '<=') conditionMet = (cellValue <= check.val);
-                                    else if (check.op === '>') conditionMet = (cellValue > check.val);
-                                    else if (check.op === '>=') conditionMet = (cellValue >= check.val);
-                                }
-                            }
-                        }
-                    } else if (check.type === 'text') {
-                        let containsTerm = rowText.includes(check.term);
-                        conditionMet = check.isNegation ? !containsTerm : containsTerm;
-                    }
-
-                    if (req.isAnd) {
-                        if (!conditionMet) { matchText = false; break; }
-                    } else {
-                        if (conditionMet) { matchText = true; break; }
-                    }
-                }
-                if (!matchText) return false;
-            }
-
-            if (req.dateFilter && req.dateFilter.enabled) {
-                let colName = req.dateFilter.column;
-                let headers = (typeof parsedTableData !== 'undefined' && parsedTableData[0]) ? parsedTableData[0] : window.tableData[0];
-                let colIndex = headers.indexOf(colName);
-
-                if (colIndex >= 0) {
-                    let val = rowData[colIndex];
-                    if (!val) return false;
-
-                    let p = String(val).split("/");
-                    if (p.length !== 3) return false;
-                    let rowDate = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
-
-                    if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
-                    if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
-                }
-            }
-            return true;
+            let headers = (typeof parsedTableData !== 'undefined' && parsedTableData[0]) ? parsedTableData[0] : window.tableData[0];
+            return applyRowFilter(rowData, headers, req);
         });
 
         // 2. Initialize the table
@@ -384,29 +320,27 @@
 <body>
 <h1 id="title">SuperScale - Block Explore</h1>
 
-<!-- NEW SAVE PANEL -->
-<div class="save-panel">
-    <strong>Save Custom Search:</strong>
-    <input type="text" id="requestName" placeholder="Name this request (e.g. 'Oysters no flies')">
-    <button id="btnSaveRequest">Save Request</button>
-    <div class="save-panel-links">
-        <a href="SavedRequests.html">🔲 Table View &rarr;</a>
-        <a href="SavedRequestsGraphic.html">🎨 Graphic View &rarr;</a>
-        <a href="../index.html">🏡 SuperScale page &rarr;</a>
-    </div>
+<!-- NAVIGATION LINKS -->
+<div class="save-panel-links" style="justify-content: flex-end; margin-bottom: 10px;">
+    <a href="SavedRequests.html">🔲 Table View &rarr;</a>
+    <a href="SavedRequestsGraphic.html">🎨 Graphic View &rarr;</a>
+    <a href="../index.html">🏡 SuperScale page &rarr;</a>
 </div>
 
 <div class="table-container">
-    <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')...">
+    <div class="search-row">
+        <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')...">
+        <div class="save-section">
+            <input type="text" id="requestName" placeholder="Name request...">
+            <button id="btnSaveRequest">Save</button>
+        </div>
+    </div>
 
     <div class="search-controls">
         <label>
             <input type="checkbox" id="searchLogicAnd">
             Require ALL conditions (AND logic)
         </label>
-    </div>
-
-    <div class="date-filter-controls">
         <label><input type="checkbox" id="enableDateFilter"> Date filter</label>
         <label>Column: <select id="dateFilterColumn"></select></label>
         <label>From: <input type="date" id="dateFrom"></label>

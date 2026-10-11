@@ -243,7 +243,7 @@ function buildTable(tdata, headers, sums, transform) {
                                 if(l[2]=="stored")
                                         console.log();
                                 if(tags.indexOf(l[2])>-1)
-                                        endval=l[2];
+                                        endval=l[0];
                                 finaltable[indexofid[l[1]]][argindex] = endval;
                                 //   console.log(finaltable[indexofid[l[1]]]);
                                 //  console.log(finaltable[indexofid[l[1]]][argindex]);
@@ -569,4 +569,98 @@ function updateAverageRow(api, tableId, headers) {
 
                 avgCells.eq(col).text(isPercent ? avg.toFixed(1)+"%" : avg.toFixed(1));
         });
+}
+
+function applyRowFilter(rowData, headers, req) {
+        if (!req) return true;
+
+        let input = (req.search || "").toLowerCase();
+        let allChecks = [];
+        let conditionRegex = /([a-z0-9_]+)\s*(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?|empty)/gi;
+
+        input = input.replace(conditionRegex, function(match, colName, op, val) {
+                let isMissing = (val.toLowerCase() === 'empty');
+                allChecks.push({ type: 'numeric', col: colName.toLowerCase(), op: op, val: isMissing ? 'empty' : parseFloat(val) });
+                return "";
+        });
+
+        let words = input.split(/\s+/).filter(w => w.trim() !== "");
+        for (let w of words) {
+                let isNegation = w.startsWith("!");
+                let searchTerm = isNegation ? w.substring(1) : w;
+                if (searchTerm !== "") allChecks.push({ type: 'text', term: searchTerm, isNegation: isNegation });
+        }
+
+        if (allChecks.length > 0) {
+                let rowText = rowData.join(" ").toLowerCase();
+                let matchText = req.isAnd ? true : false;
+
+                for (let check of allChecks) {
+                        let conditionMet = false;
+                        if (check.type === 'numeric') {
+                                let colIndex = headers.findIndex(h => h.toLowerCase() === check.col);
+                                if (colIndex >= 0) {
+                                        let cellValue = rowData[colIndex];
+                                        let isEmpty = (cellValue === undefined || cellValue === null || String(cellValue).trim() === "");
+
+                                        if (check.val === 'empty') {
+                                                if (check.op === '==') conditionMet = isEmpty;
+                                                else if (check.op === '!=') conditionMet = !isEmpty;
+                                        } else if (!isEmpty) {
+                                                if (typeof cellValue === 'string' && cellValue.endsWith('%')) {
+                                                        cellValue = parseFloat(cellValue);
+                                                } else {
+                                                        cellValue = Number(cellValue);
+                                                }
+                                                if (!isNaN(cellValue)) {
+                                                        if (check.op === '==') conditionMet = (cellValue === check.val);
+                                                        else if (check.op === '!=') conditionMet = (cellValue !== check.val);
+                                                        else if (check.op === '<') conditionMet = (cellValue < check.val);
+                                                        else if (check.op === '<=') conditionMet = (cellValue <= check.val);
+                                                        else if (check.op === '>') conditionMet = (cellValue > check.val);
+                                                        else if (check.op === '>=') conditionMet = (cellValue >= check.val);
+                                                }
+                                        }
+                                }
+                        } else if (check.type === 'text') {
+                                let containsTerm = rowText.includes(check.term);
+                                // Also search in column headers where the row has a non-null value
+                                if (!containsTerm) {
+                                        for (let i = 0; i < headers.length; i++) {
+                                                let header = headers[i].toLowerCase();
+                                                if (header.includes(check.term)) {
+                                                        let cellValue = rowData[i];
+                                                        if (cellValue !== undefined && cellValue !== null && String(cellValue).trim() !== "") {
+                                                                containsTerm = true;
+                                                                break;
+                                                        }
+                                                }
+                                        }
+                                }
+                                conditionMet = check.isNegation ? !containsTerm : containsTerm;
+                        }
+
+                        if (req.isAnd) {
+                                if (!conditionMet) { matchText = false; break; }
+                        } else {
+                                if (conditionMet) { matchText = true; break; }
+                        }
+                }
+                if (!matchText) return false;
+        }
+
+        if (req.dateFilter && req.dateFilter.enabled) {
+                let colName = req.dateFilter.column;
+                let colIndex = headers.indexOf(colName);
+                if (colIndex >= 0) {
+                        let val = rowData[colIndex];
+                        if (!val) return false;
+                        let p = String(val).split("/");
+                        if (p.length !== 3) return false;
+                        let rowDate = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+                        if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
+                        if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
+                }
+        }
+        return true;
 }

@@ -103,6 +103,14 @@ public:
 		if(args.find(argname.c_str()) != args.end()) return (args[argname.c_str()]).c_str();
 		return "";
 	}
+	std::map<String,String> getArgumentsOnly(){
+		auto args=server.getArguments();
+		std::map<String,String> result;
+		for(auto k : args) {
+			result[k.first.c_str()] = k.second.c_str();
+		}
+		return result;
+	}
 
 	void printHeaders(){
 		int s=server.headers();
@@ -152,6 +160,7 @@ public:
 		auto args=server.getArguments();
 		//		Serial.print("Free memory 2 :");//		Serial.println(ESP.getFreeHeap());
 //		Serial.println(String()+"got "+args.size()+" arguments for path :"+path);
+		String list;
 		for(auto k : args) {
 			/*			Serial.print("Free memory 3.");
 			Serial.print(i++);
@@ -160,21 +169,31 @@ public:
 			 */	//
 	//		Serial.println(String()+"BasicServer::handleRootPath argument :"+k.first.c_str()+" = "+k.second.c_str());
 			nmap.insertValue(k.first.c_str(),k.second.c_str());
+			list+=String()+k.first.c_str()+","+k.second.c_str()+"\n";
 		}
+		if(list.length()>0) nmap.insertValue("arguments:",list.c_str());
+
 		auto params=server.getParameters();
+		list="";
 //		Serial.println(String()+"got "+params.size()+" params for path :"+path);
 		for(auto k : params) {
 			Serial.println(String()+"BasicServer::handleRootPath parameter :"+k.first.c_str()+" = "+k.second.c_str());
 			nmap.insertValue(k.first.c_str(),k.second.c_str());
+			list+=String()+k.first.c_str()+","+k.second.c_str()+"\n";
 		}
+		if(list.length()>0) nmap.insertValue("params:",list.c_str());
+
 
 		if(emitheaders) {
 			auto headers=server.getHeaders();// maybe should be optional
+			list="";
 //			Serial.println(String()+"got "+headers.size()+" headers for path :"+path);
 			for(auto k : headers) {
 //				Serial.println(String()+"BasicServer::handleRootPath header :"+k.first.c_str()+" = "+k.second.c_str());
 				nmap.insertValue(k.first.c_str(),k.second.c_str());
+				list+=String()+k.first.c_str()+","+k.second.c_str()+"\n";
 			}
+			if(list.length()>0) nmap.insertValue("headers:",list.c_str());
 		}
 
 		DataPacket datapacket=this->server.getDatapacket();

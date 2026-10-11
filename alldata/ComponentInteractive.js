@@ -1,4 +1,4 @@
-
+﻿
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 var activebgcoloroutline="f48a00";
@@ -132,9 +132,12 @@ class Input extends InteractiveItem{
 		//	if(this.isUserModified()) {if(!this.remotevalue)this.remotevalue=this.text;this.text=content;}//this.updateBG();//this.text=content;
 		this.busy=true;
 		this.frozen=true;
+		// Add extra space for dropdown arrow if datalist is attached
+		var hasDatalist = this.element.getAttribute("list") !== null;
+		var arrowPadding = hasDatalist ? 3 : 2;
 		if(content.length >minsize){
-			this.setStyle("width", (content.length +2) + "ch");
-		} else this.setStyle("width", (minsize +2) + "ch");
+			this.setStyle("width", (content.length + arrowPadding) + "ch");
+		} else this.setStyle("width", (minsize + arrowPadding) + "ch");
 		this.updateElement();//this.frozen=false;
 		this.busy=false;
 	}

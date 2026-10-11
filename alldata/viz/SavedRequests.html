@@ -9,7 +9,7 @@
     <script src="jquery.dataTables.min.js"></script>
 
     <script src="BlockVizDataProcess.js"></script>
-    <script src="BlockVizCommon.js"></script>
+    <!-- <script src="BlockVizCommon.js"></script>-->
 
     <title>TableView</title>
 
@@ -165,84 +165,53 @@
             }
             if (!req) return true;
 
-            let input = (req.search || "").toLowerCase();
-            let allChecks = [];
-            let conditionRegex = /([a-z0-9_]+)\s*(==|!=|<=|>=|<|>)\s*(-?\d+(?:\.\d+)?|empty)/gi;
-
-            input = input.replace(conditionRegex, function(match, colName, op, val) {
-                let isMissing = (val.toLowerCase() === 'empty');
-                allChecks.push({ type: 'numeric', col: colName.toLowerCase(), op: op, val: isMissing ? 'empty' : parseFloat(val) });
-                return "";
-            });
-
-            let words = input.split(/\s+/).filter(w => w.trim() !== "");
-            for (let w of words) {
-                let isNegation = w.startsWith("!");
-                let searchTerm = isNegation ? w.substring(1) : w;
-                if (searchTerm !== "") allChecks.push({ type: 'text', term: searchTerm, isNegation: isNegation });
-            }
-
-            if (allChecks.length > 0) {
-                let rowText = searchData.join(" ").toLowerCase();
-                let matchText = req.isAnd ? true : false;
-                let headers = parsedTableData[0];
-
-                for (let check of allChecks) {
-                    let conditionMet = false;
-                    if (check.type === 'numeric') {
-                        let colIndex = headers.findIndex(h => h.toLowerCase() === check.col);
-                        if (colIndex >= 0) {
-                            let cellValue = rowData[colIndex];
-                            let isEmpty = (cellValue === undefined || cellValue === null || String(cellValue).trim() === "");
-
-                            if (check.val === 'empty') {
-                                if (check.op === '==') conditionMet = isEmpty;
-                                else if (check.op === '!=') conditionMet = !isEmpty;
-                            } else if (!isEmpty) {
-                                if (typeof cellValue === 'string' && cellValue.endsWith('%')) {
-                                    cellValue = parseFloat(cellValue);
-                                } else {
-                                    cellValue = Number(cellValue);
-                                }
-                                if (!isNaN(cellValue)) {
-                                    if (check.op === '==') conditionMet = (cellValue === check.val);
-                                    else if (check.op === '!=') conditionMet = (cellValue !== check.val);
-                                    else if (check.op === '<') conditionMet = (cellValue < check.val);
-                                    else if (check.op === '<=') conditionMet = (cellValue <= check.val);
-                                    else if (check.op === '>') conditionMet = (cellValue > check.val);
-                                    else if (check.op === '>=') conditionMet = (cellValue >= check.val);
-                                }
-                            }
-                        }
-                    } else if (check.type === 'text') {
-                        let containsTerm = rowText.includes(check.term);
-                        conditionMet = check.isNegation ? !containsTerm : containsTerm;
-                    }
-                    if (req.isAnd) {
-                        if (!conditionMet) { matchText = false; break; }
-                    } else {
-                        if (conditionMet) { matchText = true; break; }
-                    }
-                }
-                if (!matchText) return false;
-            }
-
-            if (req.dateFilter && req.dateFilter.enabled) {
-                let colName = req.dateFilter.column;
-                let colIndex = parsedTableData[0].indexOf(colName);
-                if (colIndex >= 0) {
-                    let val = rowData[colIndex];
-                    if (!val) return false;
-                    let p = String(val).split("/");
-                    if (p.length !== 3) return false;
-                    let rowDate = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
-                    if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
-                    if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
-                }
-            }
-            return true;
+            return applyRowFilter(rowData, parsedTableData[0], req);
         });
+        function removeCancels(td) {
+            let ts0 = Date.now();
+            let tde = splitIntoLines(td);
+            let toremove = new Set();
 
+            for (let r = 0; r < tde.length; r++) {
+                if (tde[r].length == 0) continue;
+                let sub = splitLine(tde[r]);
+
+                if (sub[2] == "cancel") {
+                    for (let k = r - 1; k >= 0; k--) {
+                        if (toremove.has(k)) continue;
+
+                        let ksub = tde[k].split(",");
+                        if (ksub[1] == sub[1] && (ksub[2] == sub[3] || (sub[3] == "" && ksub[2] != "cancel"))) {
+                            toremove.add(k);
+                            toremove.add(r);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (toremove.size > 0) {
+                let out = [];
+                for (let i = 0; i < tde.length; i++) {
+                    if (!toremove.has(i)) out.push(tde[i]);
+                }
+                return out.join("\n");
+            }
+            let ret=tde.join("\n");
+            //     console.log("remove cancels " + (Date.now()-ts0) + " ms");
+            return ret;
+        }
+
+        function removeConsecutiveDuplicates(td) {
+            let lines = td.split('\n');
+            let out = [];
+            for (let i = 0; i < lines.length; i++) {
+                if (i === 0 || lines[i] !== lines[i - 1]) {
+                    out.push(lines[i]);
+                }
+            }
+            return out.join('\n');
+        }
         function renderTablesUI(savedRequests, dtHeaders) {
             let dtData = parsedTableData.slice(1);
             let container = $('#requestsContainer');

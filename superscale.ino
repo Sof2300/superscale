@@ -1,76 +1,18 @@
 
 /* Development notes
- * current:
- *
- * popular:
- *
- 	 Incubation
-Query: harvestcount==empty
-	GreenHouse
-Query: harvestcount>0 !compost !spent
-	Compost
-Query: compost spent
+
+Implement
+	client:
+		- association rfid/id without generate/save on assoc
+
+Test
+
+
+Bugs
 
 
 
 
-
-Todo
-
-
-
-Done
-	Ok - UI
-		 UI to test on device
-		  	- tags save buttons
-			- refocus on id & select
-			- cannot find avg
-			- freed up drop down for argument and maybe values
-			 - block viz
-			 - command revert after tag
-
-
-	Ok - server
-			- 6 saves bug
-	 	 	- tare button misbehaving
-	 	 	- sound issue
-	 	 	- More readable screen display
-	 	 	- daily harvest wrong
-		 	- prices missing
-		 	- timer to reset to default command 1h
-
-
- * old:
- 	bugs
- 		- save from UI button crash sometimes, when and why not sure
- 		- unresponsive when reconnecting wifi, why does it take so long
- 		- config file is rewritten without a part of the fields
- 		- cancell all don't work
- 	improvements
-		- in blockinfo, total sub (& be) from formula
-		- in UI, show flushes number and flushdates
-		- in stats/edit UI, escape & to %26 before saving
-		- in UI, display boottime in local time rather than GMT
-
-CURRENT ISSUES
-
-minor
-- UI slow load page : data.txt super slow to arrive
-
-
-will not solve now
-- wifi once in 2 not connected to st, only soft reset buggs ?
-
-resolved
-- time 2 string not working properly on the esp32 3.0	=>resolved
-- find why cancelled harvest breaks everything
-- harvest 0 or 1 should not be allowed to be saved
-- UI enter validate the field set it remotely
-- find way to keep last data 5 operations, provide undo function/button
-- UI reload JSON after button interaction, especially set & save
-- UI avg value of non identified species Nan average -> average of all data
-- QR tag more new
-- make black button undo
 
 setup
 - all esp pins are not able to pmw
@@ -82,27 +24,6 @@ ideas for enhancements
 - improve the plateau height & stability
 - lower the facade to not touch easily
 
- big idea
- - rfid reader
- - kaizen / keep innovating
-
-
-bugs/improvements
-	- screen species when missing doesn't erase previous
-	- separate multi save from one line by default, together as optional
-	- after multi cleared start to save the 1 line several times
-	- bug of the multisave that save 6 times
-	- make separate multi and command (have a save button for multi parameters), the idea is to leave the block info there permanently
-	- make the multiblock syntax to set but means last block for monoblock things like blockinfo
-	- there is a mistake in the average, its always the same, doesn't change per species. Maybe could provide n for the avg.
-		Also limit the data to last 12 months, or even the new year only, if n sufficient (eg >4). say something about what avg we are seeing
-
-	- pb with screen species that don't erase so next if missing or smaller don't cover all
-	- bug of double save
-	- new system of separate save of blockinfo, comment, and harvest/main command
-	- check that cancel works as expected were on server & ui
-	- auto trim argument and other fields
-	-
 
  */
 

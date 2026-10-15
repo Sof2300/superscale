@@ -90,7 +90,7 @@
                     var orderedheaders = preorder.slice();
                     orderedheaders = [...new Set([...orderedheaders, ...headers])];
 
-                    parsedTableData = buildTable(tdata3, orderedheaders, sums, formulatosubstrate);
+                    parsedTableData = buildTable(tdata3, orderedheaders, sums);
 
                     // 2. Render Graphics
                     renderGraphicUI(savedRequests);

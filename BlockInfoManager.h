@@ -344,6 +344,27 @@ private:
 			if(currentcommand==HARVEST_KEYTEXT) flushes.addPoint(currentdate, currentarg);
 			line++;
 		}
+		// If no substrate was logged, estimate it from the formula's x multiplier.
+		if(sumvals.find(SUBSTRATE_KEYTEXT) == sumvals.end() && lastvals.find(FORMULA_KEYTEXT) != lastvals.end()){
+			String formula=lastvals[FORMULA_KEYTEXT];
+			formula.toLowerCase();
+			float multiplier=0;
+			for(int xindex=0; xindex<formula.length(); xindex++){
+				if(formula[xindex]!='x') continue;
+				int numberindex=xindex+1;
+				String numbertext="";
+				bool hasdigit=false, hasdecimal=false;
+				while(numberindex<formula.length()){
+					char c=formula[numberindex];
+					if(c>='0' && c<='9') {numbertext+=c; hasdigit=true;}
+					else if(c=='.' && !hasdecimal) {numbertext+=c; hasdecimal=true;}
+					else break;
+					numberindex++;
+				}
+				if(hasdigit) multiplier=numbertext.toFloat();
+			}
+			if(multiplier>0) sumvals[SUBSTRATE_KEYTEXT]=(int)(multiplier*265);
+		}
 		//	TIMEPROFILER.tick("parseHistory","loop");
 //		for(auto it : sumvals) Serial.println(String()+"BlockInfoManager:parseHistory pretest:"+it.first+" value:"+it.second);
 		if((sumvals.find(HARVEST_KEYTEXT) != sumvals.end()) && (sumvals.find(SUBSTRATE_KEYTEXT) != sumvals.end())){

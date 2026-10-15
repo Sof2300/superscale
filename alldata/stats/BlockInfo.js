@@ -63,64 +63,6 @@ class BlockInfo extends StatDataSample {
         this.calcSubstrate();		// calculate substrate expression and total
         this.calcFlushes();			// calculate number of flushes and per flush harvest and total
         this.updateInfo(this.info);				// total BE & first flush BE
-        this.calcAuto();
-    }
-
-    calcAutoFind(name,val) {
-        for(var v in this.finalhistory){
-            let l=this.finalhistory[v];
-            let comm=BlockInfo.retreiveCommand(l), args=BlockInfo.retreiveArguments(l);
-            if(comm==name && args==val) return true;
-     //       if(args.length==1) args=args[0];
-    //        if(comm!="harvest") this.info[comm]=args;   // skip harvest since there is several
-        }
-        return false;
-    }
-
-    calcAutoHas(name,val) {
-        for(var v in this.finalhistory){
-            let l=this.finalhistory[v];
-            let comm=BlockInfo.retreiveCommand(l);
-            if(comm==name ) return true;
-        }
-        return false;
-    }
-    calcAutoCopy(key,name,val) {
-        this.info[key]=name;
-        this.info[key+"-0"]=name.split("x")[0];
-        this.info[key+"-1"]=name.split("x")[1];
-        for(let k in val){
-            let v=val[k];
-           // this.info[k]=v;
-      //      if(!this.info["substrate"]) this.info["substrate"]={};
-      //      this.info["substrate"][k]=v;
-        }
-    }
-    calcAuto(){
-        if(this.info["formula"]) {this.calcAutoCopy("formula",this.info["formula"]);return;}    // maybe we should copy the matching formula if known
-        for(var e in doubleautocalc){
-            let content=doubleautocalc[e];
-            for(let m in content.map) {
-                let formulamap=content.map[m];
-                let blacklist=content.list.slice(0);
-                let foundall=true;
-                for(let ingredientname in formulamap){
-                    let ingredientval=formulamap[ingredientname];
-                    let found=this.calcAutoFind(ingredientname,ingredientval);
-                    if(!found) {foundall=false;break;}
-                    let i=blacklist.indexOf(ingredientname);
-                    if(i>=0) blacklist.splice(i,1);
-                }
-                if(!foundall) continue;
-                foundall=false;
-                for(let ingredientname in blacklist){
-                    let found=this.calcAutoHas(ingredientname);
-                    if(found) {foundall=true;break;}
-                }
-                if(!foundall) this.calcAutoCopy(e, m,formulamap);
-            }
-            console.log();
-        }
     }
 
 
@@ -218,20 +160,26 @@ class BlockInfo extends StatDataSample {
     }
 
     calcSubstrate() {
-        // for each line, starting from the oldest
+        // Sum every explicit substrate line once, as the C++ parser does.
         var substrateorder = [];
+        var seenSubstrates = {};
         this.substratemap = {};
         var fh = this.finalhistory;
-        for (let i = fh.length; i > 0;) {
-            i--;
+        var formula = "";
+        for (let i = 0; i < fh.length; i++) {
             var comm = BlockInfo.retreiveCommand(fh[i]);
             if (!comm) continue;
+            if (comm === "formula" && !formula) formula = BlockInfo.retreiveArgument(fh[i]) || "";
             if (!BlockInfo.isSubstrate(comm)) continue;
-            substrateorder.push(comm);// keep the order
+            if (!seenSubstrates[comm]) {
+                substrateorder.push(comm);
+                seenSubstrates[comm] = true;
+            }
             var arg = BlockInfo.retreiveArgument(fh[i]);
             if (!this.substratemap[comm]) this.substratemap[comm] = 0;
-            if (isNaN(Number(arg))) continue;
-            this.substratemap[comm] += Number(arg);			// sum each command in a map
+            var value = parseInt(arg, 10);
+            if (isNaN(value)) value = 0;
+            this.substratemap[comm] += value;			// sum each command in a map
         }
         this.substratetext = "";
         this.totalsubstrate = 0;
@@ -240,6 +188,16 @@ class BlockInfo extends StatDataSample {
             if (this.substratetext.length > 0) this.substratetext += ";";
             this.substratetext += so + " : " + this.substratemap[so];
             this.totalsubstrate += this.substratemap[so];
+        }
+        if (substrateorder.length === 0 && formula) {
+            var multiplier = 0;
+            var re = /x(\d+(?:\.\d+)?)/ig;
+            var match;
+            while ((match = re.exec(formula)) !== null) multiplier = Number(match[1]);
+            if (multiplier > 0) {
+                this.totalsubstrate = parseInt(multiplier * 265, 10);
+                this.substratetext = "formula : " + this.totalsubstrate;
+            }
         }
     }
 
@@ -286,7 +244,7 @@ class BlockInfo extends StatDataSample {
             if (BlockInfo.isHarvest(fl)) {
                 let val = BlockInfo.retreiveArgument(fl);
                 this.flushinfos.push({ts: BlockInfo.timestampFromString(BlockInfo.retreiveDate(fl)), val: val});
-                this.totalharvest += val;
+                this.totalharvest += parseInt(val, 10) || 0;
             }
         }
         if(this.flushinfos.length==0) return;

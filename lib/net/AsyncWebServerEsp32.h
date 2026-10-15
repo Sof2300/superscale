@@ -286,7 +286,7 @@ public:
 
 
 	void builtinstreamRange(std::string path, std::string contentType) {
-//		Serial.println(String()+"AsyncWebServerEsp32: builtinstreamRange0 path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
+	//	Serial.println(String()+"AsyncWebServerEsp32: builtinstreamRange0 path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
 
 	    if (!currentRequest) return;
 
@@ -313,7 +313,7 @@ public:
 	        currentRequest->send(416, "text/plain", "Invalid Range");
 	        return;
 	    }
-	    Serial.println(String()+"AsyncWebServerEsp32: builtinstreamRange pre streamFileRange path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
+	 //   Serial.println(String()+"AsyncWebServerEsp32: builtinstreamRange pre streamFileRange path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
 
 	    streamFileRange(path.c_str(),contentType.c_str(), range.start,range.end);
 	}
@@ -321,7 +321,7 @@ public:
 
 
 	void streamFileRange(std::string path, std::string contentType, unsigned long start = 0, unsigned long end = 0) {
-//			Serial.println(String()+"AsyncWebServerEsp32: streamFileRange0  path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
+	//		Serial.println(String()+"AsyncWebServerEsp32: streamFileRange0  path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
 
 			if (!currentRequest) return;
 
@@ -390,7 +390,7 @@ public:
 
 //			Serial.println(String()+"AsyncWebServerEsp32: streamFileRange presend path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
 			currentRequest->send(response);
-//			Serial.println(String()+"AsyncWebServerEsp32: streamFileRange postsend path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
+	//		Serial.println(String()+"AsyncWebServerEsp32: streamFileRange postsend path:"+path.c_str()+" currentRequest:"+(currentRequest==0));
 		}
 
 

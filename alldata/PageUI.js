@@ -106,6 +106,7 @@ class BlockInfoUI {
     }
     create(data,parentcomp) {
         this.data=data;
+        this.currentspecies=data["blockinfo"]["species"] || "";
      //   this.lncomp = new SimpleBR(parentcomp)
 
         this.comp = new DivItem(parentcomp);
@@ -136,31 +137,34 @@ class BlockInfoUI {
         this.table.setStyle("border","none");
         this.table.setStyle("font-size","100%");
         this.table.setStyle("margin-left","25px");
+        const blockDateCell=this.table.cellindex[this.order.indexOf("blockdate")+1][1];
+        this.setBlockDateValue(blockDateCell,data["blockinfo"]["blockdate"]);
     }
 
     update(data){
+        this.data=data;
+        this.currentspecies=data["blockinfo"]["species"] || "";
         for (var o in this.order) {
             var oi=Number(o);
             var key=this.order[oi];
             var val=""+data["blockinfo"][key];     //            var keycompo=this.table.cellindex[o][0];// table should have some rows/column access/update not too barbaric
             if(key=="species") this.currentspecies=val;
-            if(val.length>0) val=this.getValue(key,val);
             var valcompo=this.table.cellindex[oi+1][1];  //strange it start at 1 not 0
+            if(key=="blockdate") {
+                this.setBlockDateValue(valcompo,val);
+                continue;
+            }
+            if(val.length>0) val=this.getValue(key,val);
             if(val!=valcompo.text) valcompo.setText(val);
         }
-        this.data=data;
      }
     updatePrices(pricetab){
         this.prices=pricetab;
         this.update(this.data);
     }
-     updateFile(filedata){
-        this.filedata=filedata;
-        //make into a table
-         this.filedata=filedata.split("\n");
-         for(let i in this.filedata) {
-             this.filedata[i]=this.filedata[i].split(",");
-         }
+      updateFile(filedata){
+         this.filedata=filedata.split("\n").map(line=>line.split(","));
+         this.harvestBlocks=this.buildHarvestBlocks(this.filedata);
          this.update(this.data);
      }
 
@@ -175,61 +179,177 @@ class BlockInfoUI {
         return getPrice(this.prices,species,val);
     }
 
-    getAverage(species,specobj) {
-        if(!this.filedata) return 0;
-        // classify by strains
-        let blocktable=[];
-        let allblocktable=[];
-        for(let i in this.filedata) {
-            let e=this.filedata[i];
-            if(e[2]=="species" && e[3]==species) blocktable[e[1]]={species:e[3],harvest:0};
-            if( e[2]=="species") allblocktable[e[1]]={species:e[3],harvest:0};
+    setBlockDateValue(cell,blockdate) {
+        const date=String(blockdate || "");
+        const ageWeeks=this.getBlockAgeWeeks(date);
+        const display=ageWeeks===null ? date : date+" ("+ageWeeks+" weeks)";
+        if(cell.text!==display) cell.setText(display);
+        if(!cell.element || cell.element.querySelector(".block-date-age")) return;
+
+        while(cell.element.firstChild) cell.element.removeChild(cell.element.firstChild);
+        cell.element.appendChild(document.createTextNode(date));
+        if(ageWeeks!==null) {
+            const age=document.createElement("span");
+            age.className="block-date-age";
+            age.style.fontWeight="normal";
+            age.textContent=" ("+ageWeeks+" weeks)";
+            cell.element.appendChild(age);
         }
-        let blocktablelength=0;
-        for(let e in blocktable) blocktablelength++;
-        if(blocktablelength==0) species="";
-        let sum=0, count=0,sumall=0, countall=0;
-        for(let i in this.filedata) {
-            let e=this.filedata[i];
-            if(blocktable[e[1]] && blocktable[e[1]].species==species && e[2]=="harvest") {
-                blocktable[e[1]].harvest+=Number(e[3]);
-               }
-            if(species=="" && e[2]=="harvest") {
-                if(allblocktable[e[1]]===undefined) {
-                    allblocktable[e[1]]={species:"",harvest:0};
+    }
+
+    buildHarvestBlocks(rows) {
+        const eventsByBlock = new Map();
+        rows.forEach(fields=>{
+            if(fields.length < 4 || !fields[1]) return;
+            const id=fields[1].trim();
+            if(!eventsByBlock.has(id)) eventsByBlock.set(id, []);
+            eventsByBlock.get(id).push({
+                command:(fields[2] || "").trim().toLowerCase(),
+                argument:fields.slice(3).join(",").trim()
+            });
+        });
+
+        const blocks=[];
+        eventsByBlock.forEach(events=>{
+            const cancelled=new Set();
+            const newestFirst=events.slice().reverse();
+            for(let i=0;i<newestFirst.length;i++) {
+                if(newestFirst[i].command !== "cancel") continue;
+                const target=newestFirst[i].argument.toLowerCase();
+                cancelled.add(i);
+                if(target === "all") {
+                    for(let older=i+1;older<newestFirst.length;older++) cancelled.add(older);
+                    break;
                 }
-                allblocktable[e[1]].harvest+=Number(e[3]);
+                if(target && target !== "0") {
+                    for(let older=i+1;older<newestFirst.length;older++) {
+                        if(!cancelled.has(older) && newestFirst[older].command === target) {
+                            cancelled.add(older);
+                            break;
+                        }
+                    }
+                } else if(i+1<newestFirst.length) {
+                    cancelled.add(i+1);
+                }
             }
+
+            const block={species:"",formula:"",harvest:0,substrate:0,hasSubstrate:false};
+            events.forEach((event,index)=>{
+                if(cancelled.has(events.length-1-index)) return;
+                const value=event.argument;
+                if(event.command === "species") block.species=value;
+                else if(event.command === "formula") block.formula=value;
+                else if(event.command === "harvest") {
+                    const harvest=Number(value);
+                    if(Number.isFinite(harvest)) block.harvest+=harvest;
+                } else if(event.command.indexOf("substrate") >= 0) {
+                    block.hasSubstrate=true;
+                    block.substrate+=parseInt(value,10) || 0;
+                }
+            });
+
+            if(!block.hasSubstrate && this.hasFormula(block.formula)) {
+                const multiplierPattern=/x(\d+(?:\.\d+)?)/ig;
+                let match,multiplier=0;
+                while((match=multiplierPattern.exec(block.formula)) !== null) multiplier=Number(match[1]);
+                if(multiplier>0) block.substrate=parseInt(multiplier*265,10);
+            }
+            if(block.harvest>1) blocks.push(block);
+        });
+        return blocks;
+    }
+
+    hasFormula(formula) {
+        const normalized=String(formula || "").trim();
+        return normalized !== "" && normalized !== "0";
+    }
+
+    extractFormulaSignature(formula) {
+        const match=String(formula || "").match(/(?:^|[^a-z])([a-z]+)\s*\d*\s*x\s*(\d+(?:\.\d+)?)(?=$|[^0-9.])/i);
+        if(!match) return null;
+        const base=match[1].toLowerCase();
+        return {
+            base:base==="pp" ? "pn" : base,
+            multiplier:Number(match[2])
+        };
+    }
+
+    isSimilarFormula(first,second) {
+        const firstSignature=this.extractFormulaSignature(first);
+        const secondSignature=this.extractFormulaSignature(second);
+        return firstSignature!==null &&
+            secondSignature!==null &&
+            firstSignature.base===secondSignature.base &&
+            firstSignature.multiplier===secondSignature.multiplier;
+    }
+
+    getAverageInfo(blocks) {
+        if(blocks.length===0) return {count:0,harvest:0,price:0,be:0};
+        let harvest=0,price=0,be=0;
+        blocks.forEach(block=>{
+            harvest+=block.harvest;
+            price+=this.getPriceForWeight(block.species,block.harvest);
+            be+=100*block.harvest/block.substrate;
+        });
+        return {
+            count:blocks.length,
+            harvest:harvest/blocks.length,
+            price:price/blocks.length,
+            be:be/blocks.length
+        };
+    }
+
+    formatAverage(label,blocks,includeBE) {
+        const average=this.getAverageInfo(blocks);
+        if(average.count===0) return includeBE ? label+" x0: no data" : label+": x0, no data";
+        if(includeBE) {
+            return label+" x"+average.count+": "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€) - "+average.be.toFixed(0)+"% BE";
         }
-        for(let i in blocktable) {
-            if(blocktable[i].species==species && blocktable[i].harvest>1) {
-                sum+=blocktable[i].harvest;
-                count++;
-            };
-        }
-        if(species=="") for(let i in allblocktable) {
-             if(allblocktable[i].harvest>1) {
-                sumall+=allblocktable[i].harvest;
-                countall++;
-            };
-        }
-        specobj.species=species;
-        if(species=="") {
-            specobj.count=countall;
-            return sumall/countall;
-        }
-        specobj.count=count;
-        return sum/count;
+        let result=label+": x"+average.count+", "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€)";
+        return result;
+    }
+
+    getBlockAgeWeeks(blockdate) {
+        const match=String(blockdate || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+        if(!match) return null;
+        const day=Number(match[1]), month=Number(match[2]);
+        let year=Number(match[3]);
+        if(match[3].length===2) year=year>50 ? 1900+year : 2000+year;
+        const blockDate=Date.UTC(year,month-1,day);
+        const parsedDate=new Date(blockDate);
+        if(parsedDate.getUTCFullYear()!==year || parsedDate.getUTCMonth()!==month-1 || parsedDate.getUTCDate()!==day) return null;
+        const now=new Date();
+        const today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+        return ((today-blockDate)/(7*24*60*60*1000)).toFixed(1);
     }
 
     getValue(name, val){
         if(name=="avgspecies"){
-            let spec=this.currentspecies;
-            let fspecies={species:spec, count:0};
-            let avg=this.getAverage(spec,fspecies);
-            spec=fspecies.species;
-            if(fspecies.species=="") spec="All";
-            return ""+fspecies.count+"x " +spec+": "+avg.toFixed(0)+"g ("+this.getPriceForWeight(this.currentspecies,avg).toFixed(2)+"€)";
+            const blockinfo=this.data && this.data.blockinfo || {};
+            const species=String(blockinfo.species || "");
+            const formula=String(blockinfo.formula || "").trim();
+            const substrate=Number(blockinfo.totalsubstrate);
+            const blocks=this.harvestBlocks || [];
+            const sameSpecies=blocks.filter(block=>block.species===species);
+            const lines=[
+                this.formatAverage("All species",blocks,false),
+                this.formatAverage(species || "Same species",sameSpecies,false)
+            ];
+
+            const hasSubstrate=Number.isFinite(substrate) && substrate>0;
+            if(hasSubstrate) {
+                const sameSubstrate=blocks.filter(block=>
+                    block.species===species &&
+                    this.hasFormula(block.formula) &&
+                    block.substrate===substrate
+                );
+                lines.push(this.formatAverage(species+" /"+substrate,sameSubstrate,true));
+                if(this.hasFormula(formula)) {
+                    const similarRecipe=sameSubstrate.filter(block=>this.isSimilarFormula(formula,block.formula));
+                    lines.push(this.formatAverage(species+" ~"+formula,similarRecipe,true));
+                }
+            }
+            return lines.join("\n");
         }
         if(name=="totalharvest") {
         if(!this.filedata) val+=" g";
@@ -246,7 +366,7 @@ class BlockInfoUI {
     }
 
     improveHistory(value){
-        var lines=value.split("\n");//.join("\n");
+        var lines=String(value || "").split(/\r?\n/).filter(line=>line.trim()!=="");
 
         for(let l in lines){
             let s=lines[l].indexOf(","), e=lines[l].indexOf(",",s+1);
@@ -254,7 +374,7 @@ class BlockInfoUI {
         }
         lines.reverse();////reverse order
         var removed=applyCancels(lines);
-        if(removed.length>0) lines=lines.concat(["\ncancelled:"]).concat(removed);
+        if(removed.length>0) lines=lines.concat(["cancelled:"]).concat(removed);
         value=lines.join("\n");
         value=value.replaceAll(","," ");    //replace , by space
         return value;
@@ -275,7 +395,7 @@ class BlockInfoUI {
         if(name=="blockdate") valstyle["font-size"]="110%";
         if(name=="formula") valstyle["font-size"]="90%";
         if(name=="totalharvest") valstyle["font-size"]="120%";
-        if(name=="avgspecies") {valstyle["font-size"]="100%";valstyle["font-weight"]="bold";}
+        if(name=="avgspecies") {valstyle["font-size"]="85%";valstyle["font-weight"]="normal";valstyle["white-space"]="pre-line";}
         if(name=="blockbe") valstyle["font-size"]="90%";
         if(name=="totalsubstrate") valstyle["font-size"]="80%";
         if(name=="history") {valstyle["font-size"]="80%";delete valstyle["font-weight"];}
@@ -587,6 +707,8 @@ class ChronoStatUI{
     constructor(parentcomp,data){
         this.paragraphtitle=createTitle(parentcomp, "Per day");
         this.paragraphtitle.setStyle("font-size","80%");
+        this.paragraphtitle.setStyle("font-weight","normal");
+        this.paragraphtitle.setStyle("margin-left","5px");
         this.comp=new DivItem(parentcomp,"chronostatui");
      //   <textarea id="tarea" readOnly rows=10 style = "margin:5px;width:100%;white-space: pre;font-size:70%" >
       //  this.comp.setText("hello");
@@ -632,6 +754,7 @@ class ChronoStatUI{
         //this.textcomp.setText(" >> "+overall+" << \n"+text);
         this.textcomp.setText(text);
         this.paragraphtitle.setText(overall);
+        this.paragraphtitle.element.innerHTML=overall;
 
     }
 
@@ -686,35 +809,39 @@ class ChronoStatUI{
     }
     makeOverallString(){
         this.overall="";
-      //  this.perdayarray=this.perdayarray.reverse(); // we assume the array is sorted
-        let datearray=[];
+        const millisecondsPerDay=24*60*60*1000;
+        const datedHarvests=[];
         for(let k in this.perdayarray) {
-            let ktab=k.split("/");  //switch months and days from EU to US/UK
-            let temp= ktab[0];ktab[0]=ktab[1];ktab[1]=temp;
-            let korrected=ktab.join("/");
-            var date=new Date(korrected);
-            datearray.push([date,this.perdayarray[k][0],this.perdayarray[k][1]]);
+            const parts=k.split("/").map(Number);
+            if(parts.length!==3 || parts.some(part=>!Number.isInteger(part))) continue;
+            let [day,month,year]=parts;
+            if(year<100) year+=year>50 ? 1900 : 2000;
+            const date=new Date(Date.UTC(year,month-1,day));
+            if(date.getUTCFullYear()!==year || date.getUTCMonth()!==month-1 || date.getUTCDate()!==day) continue;
+            datedHarvests.push({
+                dateNumber:Math.floor(date.getTime()/millisecondsPerDay),
+                key:k
+            });
+        }
+        const latestDate=datedHarvests.reduce((latest,entry)=>Math.max(latest,entry.dateNumber),-Infinity);
+        const weekStart=latestDate-6, monthStart=latestDate-29;
+        let weekWeight=0, weekMoney=0, monthWeight=0, monthMoney=0;
 
+        for(const entry of datedHarvests) {
+            if(entry.dateNumber<monthStart || entry.dateNumber>latestDate) continue;
+            const [weight,money]=this.perdayarray[entry.key];
+            monthWeight+=weight;
+            monthMoney+=money;
+            if(entry.dateNumber>=weekStart) {
+                weekWeight+=weight;
+                weekMoney+=money;
+            }
         }
-        datearray.sort(function(a, b){return a[0] - b[0];});
-        datearray.reverse();
-        let initdate=0, max=7, weightsum=0, moneysum=0, maxdiff=0, count=0;
-        for(let k in datearray){
-            var date=datearray[k][0];
-            if(initdate==0) initdate=date;
-            let diff=(date-initdate)/(24*3600*1000);
-            if(diff<0) diff=-diff;
-            if(diff>max) continue;
-            if(maxdiff<diff) maxdiff=diff;
-            weightsum+=datearray[k][1];
-            moneysum+=datearray[k][2];
-            count++;
-        }
-        let weightperday=(weightsum/maxdiff);
-        let moneyperday=moneysum/maxdiff;
-        this.overallstring=""+(weightsum/1000).toFixed(1)+"kg / "+moneysum.toFixed(2)+"€ per "+max+" days, "+(weightperday/1000).toFixed(1)+"kg / "+moneyperday.toFixed(2)+"€ per day";
-        return ;
-       // "10kg / 100€ over last 7 days, 1.5kg / 15€ per day"
+
+        this.overallstring=
+            "<strong>"+(weekWeight/7/1000).toFixed(1)+"kg</strong> avg per day ("+(weekMoney/7).toFixed(2)+"€), "+
+            "over <strong>"+(weekWeight/1000).toFixed(1)+"kg</strong> last 7 days ("+weekMoney.toFixed(2)+"€). "+
+            "<strong>"+(monthWeight/1000).toFixed(1)+"kg</strong> last 30 days ("+monthMoney.toFixed(2)+"€)";
     }
     getOverallString(){return  this.overallstring;}
 
@@ -756,6 +883,96 @@ class ChronoStatUI{
 }
 
 
+class HarvestGraphUI{
+    constructor(parentcomp){
+        this.comp=new DivItem(parentcomp,"harvestgraphui");
+        this.comp.setStyle("margin","5px");
+        this.comp.setStyle("width","100%");
+        this.comp.setStyle("max-width","100%");
+        this.comp.setStyle("overflow","hidden");
+        this.graph=null;
+        // Read from config.json, default to 1
+        this.dayGranularity=(typeof appConfig !== 'undefined' && appConfig.graphdays) ? appConfig.graphdays : 1;
+        this.currentData=null;
+        // Read start/end dates from config.json
+        this.startDate=(typeof appConfig !== 'undefined' && appConfig.graphstart) ? appConfig.graphstart : null;
+        this.endDate=(typeof appConfig !== 'undefined' && appConfig.graphend) ? appConfig.graphend : null;
+
+        // Add control panel
+        this.controls=new DivItem(this.comp,"harvestgraphui_controls");
+        this.controls.setStyle("margin-bottom","5px");
+        this.controls.setStyle("font-size","70%");
+
+        var startDateValue=this.startDate ? this.startDate : '';
+        var endDateValue=this.endDate ? this.endDate : '';
+        this.controls.element.innerHTML="Average every <input type='number' id='granularityInput' value='"+this.dayGranularity+"' min='1' style='width:50px;margin-left:5px;font-size:inherit'> days &nbsp;|&nbsp; From: <input type='text' id='startDateInput' value='"+startDateValue+"' placeholder='DD/MM/YY' style='width:80px;margin-left:5px;font-size:inherit'> &nbsp; To: <input type='text' id='endDateInput' value='"+endDateValue+"' placeholder='DD/MM/YY' style='width:80px;margin-left:5px;font-size:inherit'> &nbsp;|&nbsp; <span id='priceDisplay' style='color:#666'></span>";
+
+        // Add canvas container
+        this.canvasContainer=new DivItem(this.comp,"harvestgraphui_canvascontainer");
+        this.canvasContainer.setStyle("width","100%");
+        this.canvasContainer.setStyle("height","300px");
+
+        var self=this;
+        document.getElementById('granularityInput').addEventListener('change',function(e){
+            var val=parseInt(e.target.value);
+            if(val>=1){
+                self.dayGranularity=val;
+                if(self.graph && self.currentData){
+                    var priceInfo=self.graph.updateFromData(self.currentData, self.dayGranularity, self.startDate, self.endDate);
+                    if(priceInfo){
+                        var priceDisplay=document.getElementById('priceDisplay');
+                        if(priceDisplay){
+                            priceDisplay.textContent='Avg price: €'+priceInfo.avgPrice.toFixed(2)+'/kg (Total: '+(priceInfo.totalQuantity/1000).toFixed(1)+'kg, €'+(priceInfo.totalValue/1000).toFixed(0)+')';
+                        }
+                    }
+                }
+            }
+        });
+
+        document.getElementById('startDateInput').addEventListener('change',function(e){
+            self.startDate=e.target.value.trim() || null;
+            if(self.graph && self.currentData){
+                var priceInfo=self.graph.updateFromData(self.currentData, self.dayGranularity, self.startDate, self.endDate);
+                if(priceInfo){
+                    var priceDisplay=document.getElementById('priceDisplay');
+                    if(priceDisplay){
+                        priceDisplay.textContent='Avg price: €'+priceInfo.avgPrice.toFixed(2)+'/kg (Total: '+(priceInfo.totalQuantity/1000).toFixed(1)+'kg, €'+(priceInfo.totalValue/1000).toFixed(0)+')';
+                    }
+                }
+            }
+        });
+
+        document.getElementById('endDateInput').addEventListener('change',function(e){
+            self.endDate=e.target.value.trim() || null;
+            if(self.graph && self.currentData){
+                var priceInfo=self.graph.updateFromData(self.currentData, self.dayGranularity, self.startDate, self.endDate);
+                if(priceInfo){
+                    var priceDisplay=document.getElementById('priceDisplay');
+                    if(priceDisplay){
+                        priceDisplay.textContent='Avg price: €'+priceInfo.avgPrice.toFixed(2)+'/kg (Total: '+(priceInfo.totalQuantity/1000).toFixed(1)+'kg, €'+(priceInfo.totalValue/1000).toFixed(0)+')';
+                    }
+                }
+            }
+        });
+    }
+
+    update(data){
+        this.currentData=data;
+        if(!this.graph && typeof HarvestGraph !== 'undefined'){
+            this.graph=new HarvestGraph('#harvestgraphui_canvascontainer');
+        }
+        if(this.graph && data){
+            var priceInfo=this.graph.updateFromData(data, this.dayGranularity, this.startDate, this.endDate);
+            if(priceInfo){
+                var priceDisplay=document.getElementById('priceDisplay');
+                if(priceDisplay){
+                    priceDisplay.textContent='Avg price: €'+priceInfo.avgPrice.toFixed(2)+'/kg (Total: '+(priceInfo.totalQuantity/1000).toFixed(1)+'kg, €'+(priceInfo.totalValue/1000).toFixed(0)+')';
+                }
+            }
+        }
+    }
+}
+
 
 
 
@@ -772,6 +989,7 @@ class PageUI{
         this.chronostat.update(data);
         this.blockinfoui.updateFile(data);
         this.commandui.updateFile(data);
+        if(this.harvestgraphui) this.harvestgraphui.update(data);
     }
 
     createPage(data){
@@ -782,6 +1000,10 @@ class PageUI{
         // create blockinfo ui
         this.blockinfoui=new BlockInfoUI(data,this.componentrootnode);
                     new SimpleBR(this.componentrootnode);
+
+        // create harvest graph
+        this.harvestgraphui=new HarvestGraphUI(this.componentrootnode);
+        new SimpleBR(this.componentrootnode);
 
         this.chronostat=new ChronoStatUI(this.componentrootnode,data)
         new SimpleBR(this.componentrootnode);

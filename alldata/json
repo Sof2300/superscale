@@ -1,18 +1,22 @@
-﻿{"data":{"date":"","id":"K8","command":"blockdate","argument":"TODAY()"},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":"","blockdate":"","flushes":"","flushnumber":0,"formula":"","history":"8/10/26,K8,blockdate,8/10/26
-8/10/26,K8,species,POm
-8/10/26,K8,formula,Pn3x6
-8/10/26,K8,spawncode,XXXX
-8/10/26,K8,spawn,1/8
-8/10/26,K8,cancel,blockdate
-8/10/26,K8,cancel,species
-8/10/26,K8,cancel,formula
-8/10/26,K8,cancel,spawncode
-8/10/26,K8,cancel,spawn
-","id":"K8","spawn":"XXXX, 1/8","species":"","substrate":"","totalharvest":"","totalsubstrate":""},"multi":{"1/argument":"POm","1/command":"species","2/argument":"Pn3x6","2/command":"formula","3/argument":"XXXX","3/command":"spawncode","4/argument":"1/8","4/command":"spawn"},"pile":{},"config":{"boottime":"8/10/26 12:13:45","defaultcommand":"harvest","inactivitydurationsec":3600,"ip":"","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada"]},"configstate":{"allmessages":"10 | Tzizika Rfid Remote Control set id to K6 | 0
-15 | Tzizika Rfid Remote Control generated id K8 for tag 04263453D62A81 | 0
-19 | Tzizika Rfid Remote Control associated tag 04263453D62A81with id K8 | 6
-19 | Tzizika Rfid Remote Control synced with superscale ! | 6
-20 | Tzizika Rfid Remote Control ready: scan a new rfid tag ! | 0
-32 | Tzizika Rfid Remote Control undo: press button to undo last action  | 0
-55 | Tzizika Rfid Remote Control undo successful | 6
-56 | Tzizika Rfid Remote Control ready: scan a new rfid tag ! | 0","block-generate":0,"block-rfid-id-save":0,"currentmessage":"Tzizika Rfid Remote Control ready: scan a new rfid tag !","data-version":2,"fifo":0,"free-space":1028096,"multi":0,"pile":0,"save-on-set":0}}
+﻿{"data":{"date":"","id":"N77","command":"harvest","argument":""},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":125,"blockdate":"24/11/25","flushes":[{"ts":"4/2/26","ts2":"5/2/26","val":"842"},{"ts":"17/2/26","ts2":"19/2/26","val":"308"},{"ts":"6/3/26","ts2":"7/3/26","val":"213"},{"ts":"21/3/26","val":"232"},{"ts":"6/4/26","val":"36"},{"ts":"17/4/26","ts2":"19/4/26","val":"127"},{"ts":"1/5/26","val":"35"},{"ts":"11/5/26","ts2":"12/5/26","val":"208"}],"flushnumber":8,"formula":"Pn3x6","history":"24/11/25,N77,species,HUn
+24/11/25,N77,blockdate,24/11/25
+24/11/25,N77,formula,Pn3x6
+24/11/25,N77,spawncode,#C4AD-AAA
+24/11/25,N77,spawn,1/8
+4/2/26,N77,harvest,487
+5/2/26,N77,harvest,355
+17/2/26,N77,harvest,195
+19/2/26,N77,harvest,113
+6/3/26,N77,harvest,142
+7/3/26,N77,harvest,71
+21/3/26,N77,harvest,65
+21/3/26,N77,harvest,167
+6/4/26,N77,harvest,36
+17/4/26,N77,harvest,23
+19/4/26,N77,harvest,104
+1/5/26,N77,harvest,35
+11/5/26,N77,harvest,72
+12/5/26,N77,harvest,32
+11/5/26,N77,harvest,72
+12/5/26,N77,harvest,32
+","id":"N77","spawn":"#C4AD-AAA, 1/8","species":"HUn","substrate":"","totalharvest":2001,"totalsubstrate":1590},"multi":{},"pile":{},"config":{"boottime":"15/10/26 12:54:18","defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"ip":"","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"","block-generate":0,"block-rfid-id-save":0,"currentmessage":"","data-version":0,"fifo":0,"free-space":851968,"multi":0,"pile":0,"save-on-set":0}}

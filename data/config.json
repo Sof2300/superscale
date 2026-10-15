@@ -1,8 +1,9 @@
-{	"mode":"ST","ssid":"Bamboo","password":"gingembre",//"password":"seeds freedom","ssid":"gingembre",//
+{	"mode":"ST","ssid":"Bamboo","password":"gingembre", 
 	"lastvalnames" : ["species","blockdate","formula"],// command names for which only the last value is used
 	"sumnames":	["harvest","substrate"], //command names containing this value for which the values are summed
 	"multivalnames": ["spawn"], // command names for which the values are concatened
 	"defaultcommand": "harvest",
 	"inactivitydurationsec": "3600",
-	"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada"]
+	"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada", "dry-harvest","wet-harvest","overmature-harvest", "moldy-harvest", "larva-in-harvest", "data-trash"],
+	"graphdays":3, "graphstart":"1/4/26","graphend":""
 }

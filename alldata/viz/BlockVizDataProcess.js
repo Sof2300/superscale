@@ -10,60 +10,12 @@ const speciesColors = {
 
 function getSpeciesColor(species) { return speciesColors[species] || ""; }
 
-var preorder = ['id', 'species', 'blockdate', 'formula', 'totalsubstrate', 'spawn', 'spawncode', 'Age', 'BE', 'harvest'];
-var keeplast = ["harvest"];
-var sums = ["harvest"];
-var aggregated = { "harvest": 7 };
-var calculatedfields = { "Age": { "substract": ["now", "blockdate"] }, "BE": { "divide": ["totalharvest", "totalsubstrate"] } };
-var formulatosubstrate = {
-        "formula": { "Pn2x7": { "totalsubstrate": "1850" }, "Pnx6": { "totalsubstrate": "1580" }, "Pn2x6": { "totalsubstrate": "1580" }, "Pn2×6": { "totalsubstrate": "1580" }, "Pn3x7": { "totalsubstrate": "1850" }, "Pcx7": { "totalsubstrate": "1850" }, "Beechx6 2600h2o": { "totalsubstrate": "1580" }, "Beechx6 3000h2o": { "totalsubstrate": "1580" }, "Pn2x5.5": { "totalsubstrate": "1450" }, "Pn3x6": { "totalsubstrate": "1580" }, "BPcx6 unicorn": { "totalsubstrate": "1580" }, "Ppx7": { "totalsubstrate": "1850" }, "aPpx7": { "totalsubstrate": "1850" }, "Pcx6": { "totalsubstrate": "1580" }, "Pn310x6": { "totalsubstrate": "1415" }, "Ppx6": { "totalsubstrate": "1580" }, "Ppx5.5": { "totalsubstrate": "1450" }, "bPpx5.5": { "totalsubstrate": "1450" }, "aPpx5.5": { "totalsubstrate": "1450" }, "Kx6": { "totalsubstrate": "1580" }, "SDx6": { "totalsubstrate": "1580" }, "bSDx6": { "totalsubstrate": "1580" }, "Oakx6": { "totalsubstrate": "1580" }, "SFtx6": { "totalsubstrate": "1580" }, "SFtx6plus": { "totalsubstrate": "1580" }, "bSFtx6": { "totalsubstrate": "1580" }, "bSFTx6": { "totalsubstrate": "1580" }, "PpBr20Sg10x5.5": { "totalsubstrate": "1450" }, "SFtBr20Sg10x6plus": { "totalsubstrate": "1580" }, "SFtSgx6plus": { "totalsubstrate": "1580" } }
-}
-
 // MOVED 'harvest' to be immediately after Age & BE. Tags will dynamically load AFTER this predefined list.
 var preorder = ['id', 'species', 'blockdate', 'formula', 'totalsubstrate', 'spawn', 'spawncode', 'Age', 'BE', 'harvest'];
 var keeplast = ["harvest"];
 var sums = ["harvest"];
 var aggregated = { "harvest": 7 };
 var calculatedfields = { "Age": { "substract": ["now", "blockdate"] }, "BE": { "divide": ["totalharvest", "totalsubstrate"] } };
-var formulatosubstrate = {
-    "formula":
-        {   "Pn2x7": { "totalsubstrate": "1850" },
-            "Pnx6": { "totalsubstrate": "1580" },
-            "Pn2x6": { "totalsubstrate": "1580" },
-            "Pn2×6": { "totalsubstrate": "1580" }, // special x
-            "Pn3x7": { "totalsubstrate": "1850" },
-            "Pcx7": { "totalsubstrate": "1850" },
-            "Beechx6 2600h2o": { "totalsubstrate": "1580" },
-            "Beechx6 3000h2o": { "totalsubstrate": "1580" },
-            "Pn2x5.5": { "totalsubstrate": "1450" },
-            "Pn3x6": { "totalsubstrate": "1580" },
-            "BPcx6 unicorn": { "totalsubstrate": "1580" },
-
-            "Pcx7": { "totalsubstrate": "1850" },
-            "Ppx7": { "totalsubstrate": "1850" },
-            "aPpx7": { "totalsubstrate": "1850" },
-            "Pcx6": { "totalsubstrate": "1580" },
-            "Pn2x6": { "totalsubstrate": "1580" },
-            "Pn3x6": { "totalsubstrate": "1580" },
-            "Pn310x6": { "totalsubstrate": "1415" },
-            "Ppx6": { "totalsubstrate": "1580" },
-            "Ppx5.5": { "totalsubstrate": "1450" },
-            "bPpx5.5": { "totalsubstrate": "1450" },
-            "aPpx5.5": { "totalsubstrate": "1450" },
-            "Kx6": { "totalsubstrate": "1580" },
-            "SDx6": { "totalsubstrate": "1580" },
-            "bSDx6": { "totalsubstrate": "1580" },
-            "Oakx6": { "totalsubstrate": "1580" },
-            "SFtx6": { "totalsubstrate": "1580" },
-            "SFtx6plus": { "totalsubstrate": "1580" },
-            "bSFtx6": { "totalsubstrate": "1580" },
-            "bSFTx6": { "totalsubstrate": "1580" },
-            "PpBr20Sg10x5.5": { "totalsubstrate": "1450" },
-            "SFtBr20Sg10x6plus": { "totalsubstrate": "1580" },
-            "SFtSgx6plus": { "totalsubstrate": "1580" },
-        }
-};
-
 function removeConsecutiveDuplicates(td) {
         let lines = td.split('\n');
         let out = [];
@@ -189,7 +141,7 @@ function processData(tdata) {
         var orderedheaders = preorder.slice();
         orderedheaders = [...new Set([...orderedheaders, ...headers])];
 
-        let table = buildTable(tdata, orderedheaders, sums, formulatosubstrate);
+        let table = buildTable(tdata, orderedheaders, sums);
 
         ts2 = Date.now();
   //      console.log("processData buildTable: " + (ts2-ts) + " ms");
@@ -205,7 +157,15 @@ function processData(tdata) {
   //      console.log("processData total: " + (ts2-(ts0)) + " ms");
 }
 
-function buildTable(tdata, headers, sums, transform) {
+function estimateSubstrateFromFormula(formula) {
+        var multiplier = 0;
+        var re = /x(\d+(?:\.\d+)?)/ig;
+        var match;
+        while ((match = re.exec(formula)) !== null) multiplier = Number(match[1]);
+        return multiplier > 0 ? parseInt(multiplier * 265, 10) : 0;
+}
+
+function buildTable(tdata, headers, sums) {
    //     console.log("buildTable start"); let ts= Date.now(), ts2,ts0=ts;
 
         var finalheaders = headers.slice();
@@ -215,6 +175,8 @@ function buildTable(tdata, headers, sums, transform) {
 
         var indexofid = {};
         var sumlengths = {};
+        var substrateSeen = {};
+        var substrateIndex = headers.indexOf("totalsubstrate");
 
  //       ts2= Date.now();console.log("buildTable prep : "+(ts2-ts)+" ms");ts=ts2;
  //       console.log("headers:"+headers);
@@ -231,6 +193,11 @@ function buildTable(tdata, headers, sums, transform) {
                         finaltable.push(newrow);
                 }
                 l[2]=l[2].trim();
+                var row = finaltable[indexofid[l[1]]];
+                if (l[2].indexOf("substrate") >= 0 && substrateIndex >= 0) {
+                        substrateSeen[l[1]] = true;
+                        row[substrateIndex] = (parseInt(row[substrateIndex], 10) || 0) + (parseInt(l[3], 10) || 0);
+                }
                 var argindex = headers.indexOf(l[2]);
                 if (argindex >= 0) {
                         if (sums.indexOf(l[2]) >= 0) {
@@ -263,17 +230,11 @@ function buildTable(tdata, headers, sums, transform) {
         };
         displayitem(finaltable[0],finaltable[1]);
 
-        for (var r = 1; r < finaltable.length; r++) {   // fill substrate from formula
-                for (var f in formulatosubstrate) {
-                        var i = finaltable[0].indexOf(f);
-                        if (i < 0) continue;
-                        let trans = formulatosubstrate[f][finaltable[r][i]];
-                        if (trans === undefined) continue;
-                        for (let p in trans) {
-                                var pi = finaltable[0].indexOf(p);
-                                finaltable[r][pi] = trans[p];
-                        }
-                }
+        var formulaIndex = headers.indexOf("formula");
+        for (var r = 1; r < finaltable.length; r++) {
+                if (substrateSeen[finaltable[r][headers.indexOf("id")]] || substrateIndex < 0) continue;
+                var estimate = estimateSubstrateFromFormula(finaltable[r][formulaIndex] || "");
+                if (estimate > 0) finaltable[r][substrateIndex] = estimate;
         }
 
     //    ts2= Date.now();console.log("buildTable stage 2 : "+(ts2-ts)+" ms");ts=ts2;
@@ -362,13 +323,19 @@ function buildTable(tdata, headers, sums, transform) {
                 }
         }
 
-      //  ts2= Date.now();console.log("buildTable stage 5 : "+(ts2-ts)+" ms");ts=ts2;
+
+
+      //  ts2= Date.now();console.log("processData stage 5 : "+(ts2-ts)+" ms");ts=ts2;
         //   console.log("headers:"+headers);
       //  displayitem(finaltable[0],finaltable[1]);
 
         // Calculate fields logic (Age, BE)
         for (var r = 1; r < finaltable.length; r++) {
                 for (var c in calculatedfields) {
+                        let row=finaltable[r];
+                        if(row[0]=="S231") {
+                                console.log("PB here");
+                        }
                         var target = finaltable[0].indexOf(c);
                         if (target < 0) continue;
                         let op = calculatedfields[c];
@@ -484,7 +451,7 @@ function processAndBuildAllTables(rawData, savedRequests) {
         var orderedheaders = preorder.slice();
         orderedheaders = [...new Set([...orderedheaders, ...headers])];
 
-        parsedTableData = buildTable(tdata3, orderedheaders, sums, formulatosubstrate);
+        parsedTableData = buildTable(tdata3, orderedheaders, sums);
 
         let dtHeaders = parsedTableData[0].map((h, colIndex) => ({
                 title: h, defaultContent: "",

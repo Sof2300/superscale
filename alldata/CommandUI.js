@@ -1,3 +1,82 @@
+// Debug flag for probability model printouts
+const DEBUG_PROBABILITY_MODEL = false;
+
+// Predefined tag colors based on Okabe-Ito colorblind-friendly palette
+// Refined with controlled lightness/saturation differences for better distinguishability
+const predefinedTagColors = {
+    // Fruit and sale - two shades of green
+    "fruit": "hsl(176, 100%, 47%)",          // Bluish green (Okabe-Ito #009E73)
+    "sale": "hsl(120, 70%, 55%)",            // Bright green (money/profit)
+
+    // Neutral/misc - two distinct shades of grey
+    "comment": "hsl(0, 0%, 75%)",            // Light gray (neutral comments)
+    "data-trash": "hsl(0, 0%, 60%)",         // Darker gray (trash)
+
+    // Moldy and larva - two distinct shades of purple
+    "moldy-harvest": "hsl(328, 53%, 64%)",   // Reddish purple (Okabe-Ito #CC79A7)
+    "larva-in-harvest": "hsl(280, 50%, 70%)", // Blue-purple (larvae)
+
+    // Storage and glifada - two distinct shades of sandy yellow
+    "storage": "hsl(48, 89%, 63%)",          // Yellow (Okabe-Ito #F0E442)
+    "glifada": "hsl(45, 60%, 75%)",          // Sandy yellow (location)
+
+    // Flies, spent, compost - orange, brown, dark brown
+    "flies": "hsl(36, 100%, 45%)",           // Orange (Okabe-Ito #E69F00)
+    "spent": "hsl(30, 60%, 50%)",            // Brown (exhausted)
+    "compost": "hsl(25, 55%, 40%)",          // Dark brown (compost)
+
+    // Contamination - vermilion (danger)
+    "contaminated": "hsl(21, 81%, 48%)",     // Vermilion (Okabe-Ito #D55E00)
+
+    // Harvest types - distinct colors from the palette
+    "dry-harvest": "hsl(188, 60%, 65%)",     // Light teal (dry)
+    "wet-harvest": "hsl(204, 70%, 70%)",     // Sky blue (Okabe-Ito #56B4E9)
+    "overmature-harvest": "hsl(210, 75%, 55%)" // Blue (old/overripe - Okabe-Ito #0072B2)
+};
+
+// Distinct color palette for new tags based on Okabe-Ito variations
+// Colorblind-friendly palette with controlled lightness/saturation differences
+const distinctColorPalette = [
+    "hsl(21, 70%, 75%)",     // Vermilion light
+    "hsl(36, 75%, 70%)",     // Orange light
+    "hsl(48, 80%, 75%)",     // Yellow light
+    "hsl(90, 65%, 70%)",     // Green-yellow
+    "hsl(120, 60%, 70%)",    // Green
+    "hsl(176, 65%, 65%)",    // Bluish green
+    "hsl(204, 65%, 75%)",    // Sky blue light
+    "hsl(208, 70%, 65%)",    // Blue
+    "hsl(220, 70%, 80%)",    // Gray-blue light
+    "hsl(328, 50%, 75%)",    // Purple light
+    "hsl(335, 55%, 80%)",    // Pink light
+    "hsl(15, 65%, 75%)",     // Red-orange
+    "hsl(30, 60%, 65%)",     // Brown-orange
+    "hsl(42, 55%, 60%)",     // Ochre
+    "hsl(60, 50%, 65%)",     // Yellow-ochre
+    "hsl(100, 55%, 70%)",    // Chartreuse
+    "hsl(150, 55%, 75%)",    // Teal
+    "hsl(188, 60%, 75%)",    // Cyan
+    "hsl(250, 50%, 75%)",    // Violet
+    "hsl(280, 45%, 75%)",    // Orchid
+    "hsl(300, 45%, 80%)"     // Lavender
+];
+
+// Generate a consistent color from a string seed
+function stringToColor(str) {
+    // Check if tag has a predefined color
+    if (predefinedTagColors[str]) {
+        return predefinedTagColors[str];
+    }
+
+    // For new tags, use hash to pick from distinct palette
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const index = Math.abs(hash) % distinctColorPalette.length;
+    return distinctColorPalette[index];
+}
+
 ///////////////////////
 class MultiLineField {
     constructor(id, value) {
@@ -57,12 +136,14 @@ class LineUI {
                 break;
             }
             if (!key) {
-                console.log("pb here");
+                if (DEBUG_PROBABILITY_MODEL) console.log("pb here");
                 continue;
             }
             var val = String(data[dkey]);
             if (this.valuecomps[key]) {
-                if (this.valuecomps[key].text.toLowerCase() == val && this.valuecomps[key].text != val) this.valuecomps[key].setText(val);
+                // Only apply case correction for argument field (should be lowercase)
+                // For id, date, and command, preserve user's case
+                if (key === "argument" && this.valuecomps[key].text.toLowerCase() == val && this.valuecomps[key].text != val) this.valuecomps[key].setText(val);
                 if (this.valuecomps[key].text != val) {
                     this.valuecomps[key].updateText(val);
                     this.titlecomps[key].setText(dkey);
@@ -137,9 +218,11 @@ class LineUI {
         let argsByCommand = this.extractArgumentsByCommand(data) || {};
         this.argsByCommand = argsByCommand;
 
-        console.log("=== updateTags ===");
-        console.log("valuecomps:", this.valuecomps);
-        console.log("argsByCommand:", argsByCommand);
+        if (DEBUG_PROBABILITY_MODEL) {
+            console.log("=== updateTags ===");
+            console.log("valuecomps:", this.valuecomps);
+            console.log("argsByCommand:", argsByCommand);
+        }
 
         // Initially set argument suggestions to all arguments
         let allArgs = this.extractHistoricalTags(data, 3) || [];
@@ -148,23 +231,25 @@ class LineUI {
         let currentCommand = null;
         if (this.valuecomps && this.valuecomps["command"]) {
             currentCommand = this.valuecomps["command"].getUserInput() || this.valuecomps["command"].text;
-            console.log("currentCommand from getUserInput:", this.valuecomps["command"].getUserInput());
-            console.log("currentCommand from text:", this.valuecomps["command"].text);
+            if (DEBUG_PROBABILITY_MODEL) {
+                console.log("currentCommand from getUserInput:", this.valuecomps["command"].getUserInput());
+                console.log("currentCommand from text:", this.valuecomps["command"].text);
+            }
         }
-        console.log("final currentCommand:", currentCommand);
+        if (DEBUG_PROBABILITY_MODEL) console.log("final currentCommand:", currentCommand);
 
         // Update datalists
         for (let i = 0; i < this.datalists.length; i++) {
             if (this.datalists[i].id && this.datalists[i].id.includes("command")) {
                 this.datalists[i].setOptions(commands);
             } else if (this.datalists[i].id && this.datalists[i].id.includes("argument")) {
-                console.log("Setting argument datalist");
+                if (DEBUG_PROBABILITY_MODEL) console.log("Setting argument datalist");
                 // If there's a current command and it has specific arguments, use those
                 if (currentCommand && argsByCommand[currentCommand]) {
-                    console.log("Using specific args for command:", currentCommand, argsByCommand[currentCommand]);
+                    if (DEBUG_PROBABILITY_MODEL) console.log("Using specific args for command:", currentCommand, argsByCommand[currentCommand]);
                     this.datalists[i].setOptions(argsByCommand[currentCommand]);
                 } else {
-                    console.log("Using all args");
+                    if (DEBUG_PROBABILITY_MODEL) console.log("Using all args");
                     this.datalists[i].setOptions(allArgs);
                 }
             }
@@ -183,7 +268,7 @@ class LineUI {
                 var arg = parts[3].trim();
                 // Check if it exists and is NOT a strict number
                 if (arg && isNaN(Number(arg))) {
-                    console.log("Checking arg:", arg, "for command:", command, "isGoodValue:", this.isGoodValue(arg));
+        //            console.log("Checking arg:", arg, "for command:", command, "isGoodValue:", this.isGoodValue(arg));
                     if (this.isGoodValue(arg)) {
                         if (!argsByCommand[command]) {
                             argsByCommand[command] = new Set();
@@ -197,7 +282,7 @@ class LineUI {
         for (var cmd in argsByCommand) {
             argsByCommand[cmd] = Array.from(argsByCommand[cmd]);
         }
-        console.log("Final argsByCommand:", argsByCommand);
+        if (DEBUG_PROBABILITY_MODEL) console.log("Final argsByCommand:", argsByCommand);
         return argsByCommand;
     }
 
@@ -248,6 +333,24 @@ class LineUI {
             valcell.setStyle("padding-left", "0");
             var valuecomp = new Input(valcell, valcell.id + "_input_" + key + lineui_count++);
 
+            // Store reference to lineui for command checking
+            valuecomp.lineui = this;
+            valuecomp.fieldKey = key;
+
+            // Add CSV comma replacement for all fields
+            valuecomp.addListener("onkeyup", function (arg) {
+                let val = this.getCurrentValue();
+                if (val && val.includes(",")) {
+                    // Replace comma with semicolon to avoid CSV issues
+                    let newVal = val.replace(/,/g, ";");
+                    this.setUserInput(newVal);
+                    // Move cursor to end
+                    if (this.element && this.element.setSelectionRange) {
+                        this.element.setSelectionRange(newVal.length, newVal.length);
+                    }
+                }
+            }.bind(valuecomp));
+
             // If this is a command or argument field, attach the datalist
             if (key === "command" || key === "argument") {
                 let datalistId = "historical_" + key + "_list_" + lineui_count;
@@ -263,7 +366,7 @@ class LineUI {
                 // Add listener to command field to update argument suggestions
                 if (key === "command") {
                     valuecomp.addListener("onchange", function() {
-                        let currentCommand = this.getUserInput();
+                        let currentCommand = this.getCurrentValue();
                         if (this.lineui && this.lineui.argsByCommand && this.lineui.argsByCommand[currentCommand]) {
                             // Find the argument datalist by ID
                             for (let i = 0; i < this.lineui.datalists.length; i++) {
@@ -292,20 +395,50 @@ class LineUI {
             }
             if (key == "id") valuecomp.addListener("onkeyup",  // really not the right place, but cannot find where better to put it
                 function (arg) {
-                    console.log(arg);
+          //          console.log(arg);
                     if (arg.key == "Enter" && currentcommandUI) currentcommandUI.set();
                 });
-            if (key === "date") {
-                let owncomp = valuecomp;
-                // Listen for when the user clicks out of the field (onblur)
-                valuecomp.addListener("onkeyup", function (arg) {
-                    let val = this.getUserInput();
-                    //         if(!val || val.length==0) return;
-                    let formatted = standardizeDateString(val);
-                    if (formatted === "Invalid Date" || formatted.trim() === "") {
+            if (key == "command") valuecomp.addListener("onkeyup",
+                function (arg) {
+                    if (arg.key == "Enter") {
+                        if (currentcommandUI) currentcommandUI.set();
+                    }
+                });
+
+            // Define validation and reformat function first
+            if (key === "date" || key === "argument") {
+                valuecomp.validateAndReformatDate = function(fieldKey) {
+                    let val = this.getCurrentValue();
+                    // Check if command contains "date" for strict format
+                    let currentCommand = null;
+                    if (this.lineui && this.lineui.valuecomps && this.lineui.valuecomps["command"]) {
+                        currentCommand = this.lineui.valuecomps["command"].getCurrentValue() || this.lineui.valuecomps["command"].text;
+                    }
+
+                    let isValid = true;
+                    let formatted = val;
+                    let commandContainsDate = currentCommand && currentCommand.toLowerCase().includes("date");
+
+                    if (fieldKey === "date" || (fieldKey === "argument" && commandContainsDate)) {
+                        // For date field or argument when command contains "date", enforce strict D/M/YY format
+                        const validDate = parseToDate(val);
+                        if (validDate) {
+                            // Reformat to D/M/YY
+                            formatted = formatToDMYY(validDate);
+                            isValid = true;
+                        } else {
+                            isValid = false;
+                        }
+                    } else {
+                        // For argument field when command doesn't contain "date", keep original behavior
+                        let dateFormatted = standardizeDateString(val);
+                        if (dateFormatted !== "Invalid Date" && dateFormatted.trim() !== "") {
+                            formatted = dateFormatted;
+                        }
+                    }
+
+                    if (!isValid) {
                         // Invalid or empty: keep/turn it red
-                        // this.setStyle("background-color", "#ffe6e6");
-                        // this.setStyle("border", "1px solid red");
                         if (!this.savedbgcolor) this.savedbgcolor = this.activebgcolor;
                         if (!this.savedbgcolorborder) this.savedbgcolorborder = this.activebgcolorborder;
                         this.activebgcolor = "#ffe6e6";
@@ -321,38 +454,69 @@ class LineUI {
                             this.savedbgcolorborder = 0;
                         }
                         let saveval = this.remotevalue;
-                        this.setText(formatted);
+                        this.setUserInput(formatted);
                         this.remotevalue = saveval;
                     }
+                };
+            }
+
+            // Add Enter key handlers after validation function is defined
+            if (key == "date") valuecomp.addListener("onkeyup",
+                function (arg) {
+                    if (arg.key == "Enter") {
+                        // First validate and reformat
+                        this.validateAndReformatDate(key);
+                        // Then check if valid before setting
+                        if (this.activebgcolor !== "#ffe6e6" && currentcommandUI) {
+                            currentcommandUI.set();
+                        }
+                    }
+                }.bind(valuecomp));
+            if (key == "argument") valuecomp.addListener("onkeyup",
+                function (arg) {
+                    if (arg.key == "Enter") {
+                        // First validate and reformat
+                        this.validateAndReformatDate(key);
+                        // Then check if valid before setting
+                        if (this.activebgcolor !== "#ffe6e6" && currentcommandUI) {
+                            currentcommandUI.set();
+                        }
+                    }
+                }.bind(valuecomp));
+
+            // Add blur listeners for validation
+            if (key === "date") {
+                valuecomp.addListener("onkeyup", function (arg) {
+                    this.validateAndReformatDate(key);
+                }.bind(valuecomp));
+                valuecomp.addListener("onblur", function (arg) {
+                    this.validateAndReformatDate(key);
                 }.bind(valuecomp));
             }
 
-            // 2. Optional Argument Field Check
+            // Add blur listener for argument field
             if (key === "argument") {
                 valuecomp.addListener("onkeyup", function (arg) {
-                    let val = this.getUserInput();
-                    //         if(!val || val.length==0) return;
-                    let formatted = standardizeDateString(val);
-                    if (formatted !== "Invalid Date" && formatted.trim() !== "") {
-                        let saveval = this.remotevalue;
-                        this.setText(formatted);
-                        this.remotevalue = saveval;
-                    }
-            }.bind(valuecomp));
+                    this.validateAndReformatDate(key);
+                }.bind(valuecomp));
+                valuecomp.addListener("onblur", function (arg) {
+                    this.validateAndReformatDate(key);
+                }.bind(valuecomp));
+            }
+
+            valuecomp.dkey = dkey;
+            keycell.setText(dkey);
+            if (found) {
+                var val = data[dkey];
+                valuecomp.setText(String(val));
+            } else {
+                valuecomp.setStyle("visibility", "hidden");
+                keycell.setStyle("visibility", "hidden");
+            }
+            this.valuecomps[key] = valuecomp;
+            this.titlecomps[key] = keycell;
         }
-        valuecomp.dkey = dkey;
-        keycell.setText(dkey);
-        if (found) {
-            var val = data[dkey];
-            valuecomp.setText(String(val));
-        } else {
-            valuecomp.setStyle("visibility", "hidden");
-            keycell.setStyle("visibility", "hidden");
-        }
-        this.valuecomps[key] = valuecomp;
-        this.titlecomps[key] = keycell;
     }
-}
 }
 
 
@@ -450,13 +614,44 @@ class CommandButtonPanel {
 class TagProbabilityModel {
     constructor() {
         this.model = null;
+        this.lastDataHash = null;
+    }
+
+    // Simple hash function to detect if data has changed
+    hashData(datafile) {
+        if (!datafile) return null;
+        var hash = 0;
+        for (var i = 0; i < datafile.length; i++) {
+            hash = ((hash << 5) - hash) + datafile.charCodeAt(i);
+            hash |= 0; // Convert to 32bit integer
+        }
+        return hash;
     }
 
     // Build conditional probability model from all blocks in data.txt
+    // Calculates P(tag | command) for all commands
     buildModel(datafile) {
         if (!datafile || typeof appConfig === 'undefined' || !appConfig.tags) {
             this.model = null;
             return;
+        }
+
+        if (DEBUG_PROBABILITY_MODEL) console.log("buildModel called, datafile length:", datafile ? datafile.length : 0);
+
+        // Check if data has changed
+        var currentHash = this.hashData(datafile);
+        if (DEBUG_PROBABILITY_MODEL) console.log("Current hash:", currentHash, "Last hash:", this.lastDataHash);
+        if (this.lastDataHash === currentHash && this.model) {
+            if (DEBUG_PROBABILITY_MODEL) {
+                console.log("=== Tag Probability Model ===");
+                console.log("Data unchanged, skipping model rebuild");
+            }
+            return;
+        }
+        this.lastDataHash = currentHash;
+        if (DEBUG_PROBABILITY_MODEL) {
+            console.log("=== Tag Probability Model ===");
+            console.log("Data changed, rebuilding model");
         }
 
         var lines = datafile.split('\n');
@@ -464,128 +659,410 @@ class TagProbabilityModel {
         var tagSet = {};
         tags.forEach(function(tag) { tagSet[tag] = true; });
 
-        // Build co-occurrence matrix: tagPairs[A][B] = count of blocks where both A and B appear
-        var tagPairs = {};
-        var tagCounts = {}; // Individual tag frequency
+        // Build co-occurrence matrix: commandTagPairs[command][tag] = count of blocks where both appear
+        var commandTagPairs = {};
+        var commandCounts = {}; // Individual command frequency
 
+        // Build self-probability matrix: selfProbs[tag][n] = P(n+1 occurrences | n occurrences)
+        var selfProbs = {};
+        var tagOccurrenceCounts = {}; // tagOccurrenceCounts[tag][n] = count of blocks with exactly n occurrences
+
+        // Initialize matrices
+        for (var i = 0; i < lines.length; i++) {
+            var parts = lines[i].split(',');
+            if (parts.length >= 3) {
+                var command = parts[2].trim();
+                if (!commandTagPairs[command]) {
+                    commandTagPairs[command] = {};
+                    tags.forEach(function(tag) {
+                        commandTagPairs[command][tag] = 0;
+                    });
+                    commandCounts[command] = 0;
+                }
+            }
+        }
+
+        // Initialize self-probability tracking
         tags.forEach(function(tag) {
-            tagPairs[tag] = {};
-            tags.forEach(function(otherTag) {
-                tagPairs[tag][otherTag] = 0;
-            });
-            tagCounts[tag] = 0;
+            selfProbs[tag] = {};
+            tagOccurrenceCounts[tag] = {};
         });
 
-        // Group entries by block ID
+        // Group entries by block ID, respecting cancel commands
+        var blockCommands = {};
         var blockTags = {};
+        var blockCancelledCommands = {};
         for (var i = 0; i < lines.length; i++) {
             var parts = lines[i].split(',');
             if (parts.length >= 3) {
                 var blockId = parts[1].trim();
                 var command = parts[2].trim();
-                if (tagSet[command]) {
-                    if (!blockTags[blockId]) blockTags[blockId] = [];
-                    if (blockTags[blockId].indexOf(command) === -1) {
-                        blockTags[blockId].push(command);
+                var argument = parts.length >= 4 ? parts[3].trim() : "";
+
+                if (command === "cancel") {
+                    // Track cancelled commands per block
+                    if (!blockCancelledCommands[blockId]) blockCancelledCommands[blockId] = {};
+                    blockCancelledCommands[blockId][argument] = true;
+                    // Remove from blockCommands if it was there
+                    if (blockCommands[blockId]) {
+                        var idx = blockCommands[blockId].indexOf(argument);
+                        if (idx !== -1) {
+                            blockCommands[blockId].splice(idx, 1);
+                        }
+                    }
+                    // Remove from blockTags if it was there
+                    if (blockTags[blockId]) {
+                        var idx = blockTags[blockId].indexOf(argument);
+                        if (idx !== -1) {
+                            blockTags[blockId].splice(idx, 1);
+                        }
+                    }
+                } else {
+                    // Only add command if it hasn't been cancelled for this block
+                    if (!blockCancelledCommands[blockId] || !blockCancelledCommands[blockId][command]) {
+                        if (!blockCommands[blockId]) blockCommands[blockId] = [];
+                        if (blockCommands[blockId].indexOf(command) === -1) {
+                            blockCommands[blockId].push(command);
+                        }
+                        // Track tags separately with full count (not unique)
+                        if (tagSet[command]) {
+                            if (!blockTags[blockId]) blockTags[blockId] = [];
+                            blockTags[blockId].push(command);
+                        }
                     }
                 }
             }
         }
 
-        // Count co-occurrences
+        // Debug: print blocks with multiple fruit occurrences
+        if (DEBUG_PROBABILITY_MODEL) console.log("=== Blocks with Multiple Fruit Occurrences ===");
         for (var blockId in blockTags) {
             var blockTagList = blockTags[blockId];
-            for (var i = 0; i < blockTagList.length; i++) {
-                var tag1 = blockTagList[i];
-                tagCounts[tag1]++;
+            var fruitCount = 0;
+            for (var j = 0; j < blockTagList.length; j++) {
+                if (blockTagList[j] === 'fruit') fruitCount++;
+            }
+            if (fruitCount > 1) {
+                if (DEBUG_PROBABILITY_MODEL) console.log("Block " + blockId + " has " + fruitCount + " fruit(s): " + blockTagList.join(", "));
+            }
+        }
+
+        if (DEBUG_PROBABILITY_MODEL) {
+            console.log("=== Building Tag Probability Model ===");
+            console.log("Found " + Object.keys(blockCommands).length + " blocks with commands");
+            console.log("Sample blocks and their commands:");
+        }
+        var blockCount = 0;
+        for (var blockId in blockCommands) {
+            if (blockCount < 5) {
+                if (DEBUG_PROBABILITY_MODEL) {
+                    console.log("  Block " + blockId + " commands: " + blockCommands[blockId].join(", "));
+                    console.log("  Block " + blockId + " tags: " + (blockTags[blockId] || []).join(", "));
+                }
+                blockCount++;
+            }
+        }
+
+        // Count co-occurrences between commands and tags
+        for (var blockId in blockCommands) {
+            var blockCommandList = blockCommands[blockId];
+            var blockTagList = blockTags[blockId] || [];
+
+            // Count each command (for self-probability, count blocks with at least one occurrence)
+            var commandCountsInBlock = {};
+            for (var i = 0; i < blockCommandList.length; i++) {
+                var command = blockCommandList[i];
+                if (!commandCountsInBlock[command]) {
+                    commandCountsInBlock[command] = true;
+                    commandCounts[command]++;
+                }
+            }
+
+            // Count co-occurrences: for each command in block, increment count for each tag in block
+            for (var i = 0; i < blockCommandList.length; i++) {
+                var command = blockCommandList[i];
                 for (var j = 0; j < blockTagList.length; j++) {
-                    var tag2 = blockTagList[j];
-                    tagPairs[tag1][tag2]++;
+                    var tag = blockTagList[j];
+                    if (commandTagPairs[command]) {
+                        commandTagPairs[command][tag]++;
+                    }
+                }
+            }
+
+            // Count tag occurrences for self-probability
+            for (var i = 0; i < tags.length; i++) {
+                var tag = tags[i];
+                var count = 0;
+                for (var j = 0; j < blockTagList.length; j++) {
+                    if (blockTagList[j] === tag) count++;
+                }
+                if (!tagOccurrenceCounts[tag][count]) tagOccurrenceCounts[tag][count] = 0;
+                tagOccurrenceCounts[tag][count]++;
+            }
+        }
+
+        // Calculate conditional probabilities: P(tag | command) = count(command and tag) / count(command)
+        var conditionalProbs = {};
+        for (var command in commandTagPairs) {
+            conditionalProbs[command] = {};
+            tags.forEach(function(tag) {
+                if (commandCounts[command] > 0) {
+                    conditionalProbs[command][tag] = commandTagPairs[command][tag] / commandCounts[command];
+                } else {
+                    conditionalProbs[command][tag] = 0;
+                }
+            });
+        }
+
+        // Calculate self-probabilities: P(n+1 | n) = count with n+1 / count with n
+        if (DEBUG_PROBABILITY_MODEL) console.log("=== Self-Probability Calculation for All Tags ===");
+        for (var tag in tagOccurrenceCounts) {
+            var counts = tagOccurrenceCounts[tag];
+            var maxCount = 0;
+            for (var n in counts) {
+                if (parseInt(n) > maxCount) maxCount = parseInt(n);
+            }
+
+            if (DEBUG_PROBABILITY_MODEL) {
+                console.log("Tag: " + tag);
+                console.log("  Occurrence counts across all blocks:", counts);
+            }
+            for (var n in counts) {
+                if (DEBUG_PROBABILITY_MODEL) console.log("    Blocks with " + n + " occurrence(s): " + counts[n]);
+            }
+
+            for (var n = 0; n <= maxCount; n++) {
+                var countWithN = counts[n] || 0;
+                var countWithNPlus1 = counts[n + 1] || 0;
+                if (countWithN > 0) {
+                    selfProbs[tag][n] = countWithNPlus1 / countWithN;
+                    if (DEBUG_PROBABILITY_MODEL) console.log("    P(" + (parseInt(n)+1) + "|" + n + ") = " + countWithNPlus1 + " / " + countWithN + " = " + selfProbs[tag][n].toFixed(3));
+                } else {
+                    selfProbs[tag][n] = 0;
                 }
             }
         }
 
-        // Calculate conditional probabilities: P(B|A) = count(A and B) / count(A)
-        var conditionalProbs = {};
-        tags.forEach(function(tagA) {
-            conditionalProbs[tagA] = {};
-            tags.forEach(function(tagB) {
-                if (tagCounts[tagA] > 0) {
-                    conditionalProbs[tagA][tagB] = tagPairs[tagA][tagB] / tagCounts[tagA];
-                } else {
-                    conditionalProbs[tagA][tagB] = 0;
+        if (DEBUG_PROBABILITY_MODEL) {
+            console.log("=== Tag Probability Model Build ===");
+            console.log("Command counts:", commandCounts);
+            console.log("Sample conditional probabilities (P(tag | command)):");
+        }
+        var sampleCount = 0;
+        for (var command in conditionalProbs) {
+            if (sampleCount < 15) {
+                var sample = {};
+                for (var tag in conditionalProbs[command]) {
+                    if (conditionalProbs[command][tag] > 0) {
+                        sample[tag] = conditionalProbs[command][tag].toFixed(3);
+                    }
                 }
-            });
-        });
+                if (Object.keys(sample).length > 0) {
+                    if (DEBUG_PROBABILITY_MODEL) console.log("  Given command '" + command + "':", sample);
+                    sampleCount++;
+                }
+            }
+        }
+
+        // Print self-probabilities (transition probabilities)
+        if (DEBUG_PROBABILITY_MODEL) console.log("Self-probabilities (P(n+1 occurrences | n occurrences)):");
+        for (var i = 0; i < tags.length; i++) {
+            var tag = tags[i];
+            var probs = selfProbs[tag];
+            var probStr = [];
+            for (var n in probs) {
+                if (probs[n] > 0) {
+                    probStr.push("P(" + (parseInt(n)+1) + "|" + n + ")=" + probs[n].toFixed(3));
+                }
+            }
+            if (probStr.length > 0) {
+                if (DEBUG_PROBABILITY_MODEL) console.log("  " + tag + ": " + probStr.join(", "));
+            }
+        }
 
         this.model = {
             conditionalProbs: conditionalProbs,
-            tagCounts: tagCounts
+            commandCounts: commandCounts,
+            selfProbs: selfProbs
         };
     }
 
-    // Predict next tag probability based on existing tags in block
+    // Predict next tag probability based on all commands in block history
     predictNextTag(blockHistory) {
         if (!this.model || typeof appConfig === 'undefined' || !appConfig.tags) return null;
 
         var tags = appConfig.tags;
-        var blockTags = this.extractTagsFromBlockHistory(blockHistory);
+        var tagSet = {};
+        tags.forEach(function(tag) { tagSet[tag] = true; });
+        var blockCommands = this.extractCommandsFromBlockHistory(blockHistory);
 
-        // If block has no tags, use individual frequency
-        if (blockTags.length === 0) {
-            var probabilities = {};
-            var totalCount = 0;
-            for (var tag in this.model.tagCounts) {
-                totalCount += this.model.tagCounts[tag];
+        if (DEBUG_PROBABILITY_MODEL) {
+            console.log("=== Tag Prediction for Current Block ===");
+            console.log("Block history:", blockHistory);
+            console.log("Extracted commands from block:", blockCommands);
+        }
+
+        // Count occurrences of each tag in the block
+        var tagCounts = {};
+        for (var i = 0; i < blockCommands.length; i++) {
+            var command = blockCommands[i];
+            if (tagSet[command]) {
+                if (!tagCounts[command]) tagCounts[command] = 0;
+                tagCounts[command]++;
             }
+        }
+        if (DEBUG_PROBABILITY_MODEL) console.log("Tag occurrence counts in block:", tagCounts);
+
+        // If block has no commands, use individual tag frequency
+        if (blockCommands.length === 0) {
+            if (DEBUG_PROBABILITY_MODEL) console.log("Block has no commands - using uniform probability");
+            var probabilities = {};
             tags.forEach(function(tag) {
-                probabilities[tag] = totalCount > 0 ? this.model.tagCounts[tag] / totalCount : 0;
-            }.bind(this));
+                probabilities[tag] = 1 / tags.length;
+            });
+            if (DEBUG_PROBABILITY_MODEL) console.log("Uniform probabilities:", probabilities);
             return probabilities;
         }
 
-        // Combine conditional probabilities from all existing tags (average)
+        // Combine conditional probabilities from all commands using log-linear pooling
+        // Log-linear pooling: P_final(tag) ∝ ∏ P_i(tag)
         var probabilities = {};
         tags.forEach(function(tag) {
-            probabilities[tag] = 0;
+            probabilities[tag] = 1; // Start with 1 for multiplication
         });
 
-        for (var i = 0; i < blockTags.length; i++) {
-            var existingTag = blockTags[i];
-            if (this.model.conditionalProbs[existingTag]) {
+        if (DEBUG_PROBABILITY_MODEL) console.log("Calculating conditional probabilities for each command:");
+        // Use unique commands for log-linear pooling (don't multiply same command multiple times)
+        var uniqueCommands = [];
+        var seenCommands = {};
+        for (var i = 0; i < blockCommands.length; i++) {
+            var command = blockCommands[i];
+            if (!seenCommands[command]) {
+                seenCommands[command] = true;
+                uniqueCommands.push(command);
+            }
+        }
+        if (DEBUG_PROBABILITY_MODEL) console.log("Using unique commands:", uniqueCommands);
+
+        for (var i = 0; i < uniqueCommands.length; i++) {
+            var command = uniqueCommands[i];
+            if (DEBUG_PROBABILITY_MODEL) console.log("  For command '" + command + "':");
+            if (this.model.conditionalProbs[command]) {
                 for (var j = 0; j < tags.length; j++) {
-                    var candidateTag = tags[j];
-                    probabilities[candidateTag] += this.model.conditionalProbs[existingTag][candidateTag];
+                    var tag = tags[j];
+                    var prob = this.model.conditionalProbs[command][tag];
+
+                    // For self-probability, use occurrence-based transition probability
+                    if (command === tag) {
+                        var currentCount = tagCounts[tag] || 0;
+                        var selfProb = this.model.selfProbs[tag][currentCount] || 0;
+                        prob = selfProb;
+                        if (DEBUG_PROBABILITY_MODEL) {
+                            console.log("    P(" + tag + "|" + command + ") = " + prob.toFixed(3) + " [SELF using P(" + (currentCount+1) + "|" + currentCount + ")]");
+                            // Debug: print all self-probabilities for this tag
+                            console.log("    All self-probabilities for " + tag + ":", this.model.selfProbs[tag]);
+                        }
+                    } else {
+                        if (prob > 0) {
+                            if (DEBUG_PROBABILITY_MODEL) console.log("    P(" + tag + "|" + command + ") = " + prob.toFixed(3));
+                        }
+                    }
+
+                    // Use a small epsilon to avoid zero multiplication (Bayesian smoothing)
+                    var smoothProb = Math.max(prob, 0.001);
+                    probabilities[tag] *= smoothProb;
                 }
+            } else {
+                if (DEBUG_PROBABILITY_MODEL) console.log("    No probability data for command '" + command + "'");
             }
         }
 
-        // Average the probabilities
-        tags.forEach(function(tag) {
-            probabilities[tag] = probabilities[tag] / blockTags.length;
-        });
+        // Normalize the probabilities (log-linear pooling)
+        if (DEBUG_PROBABILITY_MODEL) console.log("Normalizing probabilities (log-linear pooling):");
+        var total = 0;
+        for (var tag in probabilities) {
+            total += probabilities[tag];
+        }
+        for (var tag in probabilities) {
+            probabilities[tag] = probabilities[tag] / total;
+        }
+
+        // Print final probabilities
+        if (DEBUG_PROBABILITY_MODEL) console.log("Final probabilities:");
+        for (var tag in probabilities) {
+            if (probabilities[tag] > 0.001) {
+                if (DEBUG_PROBABILITY_MODEL) console.log("  " + tag + ": " + probabilities[tag].toFixed(3));
+            }
+        }
 
         return probabilities;
     }
 
-    // Extract tags from a single block's history string
+    // Extract all commands from a single block's history string, respecting cancel commands
+    // Returns array with duplicates (to count occurrences)
+    extractCommandsFromBlockHistory(historyString) {
+        if (!historyString) return [];
+        var lines = historyString.split('\n');
+        var foundCommands = [];
+        var cancelledCommands = {};
+
+        // Process history in order, tracking cancellations
+        for (var i = 0; i < lines.length; i++) {
+            var parts = lines[i].split(',');
+            if (parts.length >= 3) {
+                var command = parts[2].trim();
+                var argument = parts.length >= 4 ? parts[3].trim() : "";
+
+                if (command === "cancel") {
+                    // Mark the cancelled command
+                    cancelledCommands[argument] = true;
+                    // Remove all occurrences of cancelled command from foundCommands
+                    for (var j = foundCommands.length - 1; j >= 0; j--) {
+                        if (foundCommands[j] === argument) {
+                            foundCommands.splice(j, 1);
+                        }
+                    }
+                } else if (!cancelledCommands[command]) {
+                    // Only add command if it hasn't been cancelled
+                    foundCommands.push(command);
+                }
+            }
+        }
+
+        return foundCommands;
+    }
+
+    // Extract tags from a single block's history string, respecting cancel commands
     extractTagsFromBlockHistory(historyString) {
         if (!historyString || typeof appConfig === 'undefined' || !appConfig.tags) return [];
         var lines = historyString.split('\n');
         var tagSet = {};
         appConfig.tags.forEach(function(tag) { tagSet[tag] = true; });
-        var foundTags = [];
+        var foundTags = {};
+        var cancelledCommands = {};
 
+        // Process history in order, tracking cancellations
         for (var i = 0; i < lines.length; i++) {
             var parts = lines[i].split(',');
             if (parts.length >= 3) {
                 var command = parts[2].trim();
-                if (tagSet[command] && foundTags.indexOf(command) === -1) {
-                    foundTags.push(command);
+                var argument = parts.length >= 4 ? parts[3].trim() : "";
+
+                if (command === "cancel") {
+                    // Mark the cancelled command
+                    cancelledCommands[argument] = true;
+                    // Also remove from foundTags if it was there
+                    if (foundTags[argument]) {
+                        delete foundTags[argument];
+                    }
+                } else if (tagSet[command] && !cancelledCommands[command]) {
+                    // Only add tag if it hasn't been cancelled
+                    foundTags[command] = true;
                 }
             }
         }
-        return foundTags;
+
+        return Object.keys(foundTags);
     }
 }
 
@@ -767,6 +1244,19 @@ class CommandMultiUI {
         clineui.buttonpanel.addButton("set", "set -", this.setbstyle, this.set.bind(this, i));
         clineui.buttonpanel.addButton("clear", "clear x", this.clearbstyle, this.clear.bind(this, i));
         this.commandlineuis[i] = clineui;
+
+        // Add Enter key listeners to all fields in this multi row
+        var self = this;
+        for (var key in line.valuecomps) {
+            line.valuecomps[key].addListener("onkeyup",
+                (function (rowIndex) {
+                    return function (arg) {
+                        if (arg.key == "Enter") {
+                            self.set(rowIndex);
+                        }
+                    };
+                })(i));
+        }
     }
 
     getDataMaxIndex() {
@@ -825,6 +1315,30 @@ class CommandMultiUI {
 
     set(rowindex) {
         console.log("CommandMultiUI::set");
+        var row = this.commandlineuis[rowindex].row;
+        var commandField = row.valuecomps["command"];
+        var currentCommand = commandField.getUserInput() || commandField.text;
+        var commandContainsDate = currentCommand && currentCommand.toLowerCase().includes("date");
+
+        if (commandContainsDate) {
+            var dateField = row.valuecomps["date"];
+            var argumentField = row.valuecomps["argument"];
+
+            // Check if date field is invalid (has red background)
+            if (dateField && dateField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: date field is invalid !");
+                console.log("Cannot set: date field is invalid");
+                return;
+            }
+
+            // Check if argument field is invalid (has red background)
+            if (argumentField && argumentField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: argument field is invalid !");
+                console.log("Cannot set: argument field is invalid");
+                return;
+            }
+        }
+
         var args = this.commandlineuis[rowindex].getArgURL();
         if (args) disenableload(this.urls["set"] + args, this.commandlineuis[rowindex].getCompIds());
     }
@@ -925,12 +1439,24 @@ class CommandPileUI {
             if (buttons[b].mykey == "clearAll") buttons[b].setCallback(this.clearLinePile.bind(this, i));
         }
         let lines = this.commandmultiuis[i].commandlineuis;
+        var self = this;
         for (var l in lines) {
             //     lines[l].buttonpanel.addButton("pop", "pop ^", this.commandmultiuis[i].clearbstyle, this.pop.bind(this,i,l));
             let buttons = lines[l].buttonpanel.buttons;
             for (var b in buttons) {
                 if (buttons[b].mykey == "set") buttons[b].setCallback(this.setPile.bind(this, i, l));
                 if (buttons[b].mykey == "clear") buttons[b].setCallback(this.clearLinePile.bind(this, i, l));
+            }
+            // Add Enter key listeners to all fields in this pile line
+            for (var key in lines[l].row.valuecomps) {
+                lines[l].row.valuecomps[key].addListener("onkeyup",
+                    (function (rowIndex, lineIndex) {
+                        return function (arg) {
+                            if (arg.key == "Enter") {
+                                self.setPile(rowIndex, lineIndex);
+                            }
+                        };
+                    })(i, l));
             }
         }
     }
@@ -998,6 +1524,30 @@ class CommandPileUI {
 
     setPile(rowindex, lineindex) {
         console.log("CommandMultiUI::set");
+        var row = this.commandmultiuis[rowindex].commandlineuis[lineindex].row;
+        var commandField = row.valuecomps["command"];
+        var currentCommand = commandField.getUserInput() || commandField.text;
+        var commandContainsDate = currentCommand && currentCommand.toLowerCase().includes("date");
+
+        if (commandContainsDate) {
+            var dateField = row.valuecomps["date"];
+            var argumentField = row.valuecomps["argument"];
+
+            // Check if date field is invalid (has red background)
+            if (dateField && dateField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: date field is invalid !");
+                console.log("Cannot set: date field is invalid");
+                return;
+            }
+
+            // Check if argument field is invalid (has red background)
+            if (argumentField && argumentField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: argument field is invalid !");
+                console.log("Cannot set: argument field is invalid");
+                return;
+            }
+        }
+
         var args = this.commandmultiuis[rowindex].commandlineuis[lineindex].getArgURL();
         disenableload("/pileEdit" + args, ["pilefieldset"]);
     }
@@ -1186,8 +1736,21 @@ class CommandUI {
         var probs = this.tagProbabilityModel.predictNextTag(history);
         if (probs) {
             sortedTags = appConfig.tags.slice().sort(function(a, b) {
-                return probs[b] - probs[a];
+                // Sort by probability descending, but zero-probability tags go to the end
+                var probA = probs[a] || 0;
+                var probB = probs[b] || 0;
+                if (probA === 0 && probB === 0) return 0;
+                if (probA === 0) return 1; // a goes to end
+                if (probB === 0) return -1; // b goes to end
+                return probB - probA; // higher probability first
             });
+            if (DEBUG_PROBABILITY_MODEL) {
+                console.log("=== Initial Tag Order ===");
+                console.log("Sorted tags with probabilities:");
+                for (var i = 0; i < sortedTags.length; i++) {
+                    console.log("  " + (i+1) + ". " + sortedTags[i] + " (probability: " + (probs[sortedTags[i]] || 0).toFixed(3) + ")");
+                }
+            }
         }
         this.createTagButtons(sortedTags);
 
@@ -1218,13 +1781,6 @@ class CommandUI {
                 tagsTitle.setStyle("font-size", "70%");
                 tagsTitle.setStyle("color", "gray");
                 tagsTitle.setStyle("margin-right", "5px");
-                var tagbstyle = {
-                    "font-size": "60%",
-                    "margin": "2px",
-                    "padding": "2px 2px",
-                    "background-color": "#f5eede",
-                    "border-radius": "8px"
-                };
 
                 this.tagscheckbox = new CheckBox(cell, "tagscheckbox");
                 this.tagscheckbox.setStyle("margin-left", "5px");
@@ -1235,13 +1791,26 @@ class CommandUI {
                 this.tagscheckbox.element.checked = 1;
 
                 for (let j = 0; j < buttonnumber; j++) {
-                    //cell=newrow.addCell();
-                    let tag = sortedTags[j]
+                    let tag = sortedTags[j];
+                    let tagbstyle = {
+                        "font-size": "60%",
+                        "margin": "2px",
+                        "padding": "2px 2px",
+                        "background-color": stringToColor(tag),
+                        "border-radius": "8px"
+                    };
                     this.tagbuttonpanel.addButton("tag_" + j, "#" + tag + " 🏷️",
                         tagbstyle,
                         this.saveWithTag.bind(this, tag),
                         cell
                     );
+
+                    // Add a line break after every 5th tag (except the last one)
+                    if ((j + 1) % 5 === 0 && j < buttonnumber - 1) {
+                        let br = new ComponentNode(cell, "br_" + j);
+                        br.tag = "br";
+                        br.updateElement();
+                    }
                 }
             }
 
@@ -1260,31 +1829,48 @@ class CommandUI {
         }
         this.tagbuttonpanel.buttons = [];
 
+        // Remove existing br tags (but preserve checkbox and title)
+        if (this.tagbuttonscell && this.tagbuttonscell.element) {
+            var brElements = this.tagbuttonscell.element.querySelectorAll('br[id^="br_"]');
+            for (var k = 0; k < brElements.length; k++) {
+                if (brElements[k].parentNode) {
+                    brElements[k].parentNode.removeChild(brElements[k]);
+                }
+            }
+        }
+
         // Recreate buttons with new order
         if (typeof appConfig !== 'undefined' && appConfig && appConfig.tags.length > 0 && this.tagbuttonscell) {
-            var cell = this.tagbuttonscell;
-            var tagbstyle = {
-                "font-size": "60%",
-                "margin": "2px",
-                "padding": "2px 2px",
-                "background-color": "#f5eede",
-                "border-radius": "8px"
-            };
+            const buttonnumber = sortedTags.length;
 
-            for (let j = 0; j < sortedTags.length; j++) {
+            for (let j = 0; j < buttonnumber; j++) {
                 let tag = sortedTags[j];
+                let tagbstyle = {
+                    "font-size": "60%",
+                    "margin": "2px",
+                    "padding": "2px 2px",
+                    "background-color": stringToColor(tag),
+                    "border-radius": "8px"
+                };
                 this.tagbuttonpanel.addButton("tag_" + j, "#" + tag + " 🏷️",
                     tagbstyle,
                     this.saveWithTag.bind(this, tag),
-                    cell
+                    this.tagbuttonscell
                 );
+
+                // Add a line break after every 5th tag (except the last one)
+                if ((j + 1) % 5 === 0 && j < buttonnumber - 1) {
+                    let br = new ComponentNode(this.tagbuttonscell, "br_" + j);
+                    br.tag = "br";
+                    br.updateElement();
+                }
             }
         }
     }
 
     // Ř=ÜG NEW: Sends the save request overriding ONLY the command value
     saveWithTag(tag) {
-        console.log("CommandUI::saveWithTag " + tag);
+        if (DEBUG_PROBABILITY_MODEL) console.log("CommandUI::saveWithTag " + tag);
         var argtext = "";
         var args = this.commandlineui.getArgURL();
         var fullargs = this.commandlineui.getFullArgURL();
@@ -1346,7 +1932,8 @@ class CommandUI {
         if (this.commandpileui) {
             this.commandpileui.updateFile(datafile);
         }
-        // Rebuild probability model from updated data.txt
+        // Rebuild probability model from updated data.txt (with caching)
+        if (DEBUG_PROBABILITY_MODEL) console.log("CommandUI::updateFile - calling buildModel");
         this.tagProbabilityModel.buildModel(datafile);
     }
 
@@ -1362,8 +1949,21 @@ class CommandUI {
             var probs = this.tagProbabilityModel.predictNextTag(data["blockinfo"]["history"]);
             if (probs) {
                 var sortedTags = appConfig.tags.slice().sort(function(a, b) {
-                    return probs[b] - probs[a];
+                    // Sort by probability descending, but zero-probability tags go to the end
+                    var probA = probs[a] || 0;
+                    var probB = probs[b] || 0;
+                    if (probA === 0 && probB === 0) return 0;
+                    if (probA === 0) return 1; // a goes to end
+                    if (probB === 0) return -1; // b goes to end
+                    return probB - probA; // higher probability first
                 });
+                if (DEBUG_PROBABILITY_MODEL) {
+                    console.log("=== Final Tag Order ===");
+                    console.log("Sorted tags with probabilities:");
+                    for (var i = 0; i < sortedTags.length; i++) {
+                        console.log("  " + (i+1) + ". " + sortedTags[i] + " (probability: " + (probs[sortedTags[i]] || 0).toFixed(3) + ")");
+                    }
+                }
                 this.refreshTagButtons(sortedTags);
             }
         }
@@ -1466,6 +2066,31 @@ class CommandUI {
 
     set() {
         console.log("CommandUI::set");
+
+        // Check if command is blockdate and validate date/argument fields
+        var commandField = this.commandlineui.row.valuecomps["command"];
+        var currentCommand = commandField.getUserInput() || commandField.text;
+        var commandContainsDate = currentCommand && currentCommand.toLowerCase().includes("date");
+
+        if (commandContainsDate) {
+            var dateField = this.commandlineui.row.valuecomps["date"];
+            var argumentField = this.commandlineui.row.valuecomps["argument"];
+
+            // Check if date field is invalid (has red background)
+            if (dateField && dateField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: date field is invalid !");
+                console.log("Cannot set: date field is invalid");
+                return;
+            }
+
+            // Check if argument field is invalid (has red background)
+            if (argumentField && argumentField.activebgcolor === "#ffe6e6") {
+                alert("Cannot set: argument field is invalid !");
+                console.log("Cannot set: argument field is invalid");
+                return;
+            }
+        }
+
         var args = this.commandlineui.getArgURL();
         if (args) disenableload("/set" + args, this.commandlineui.getCompIds());
     }
@@ -1579,4 +2204,48 @@ function standardizeDateString(inputString) {
     }
 
     return "Invalid Date";
+}
+
+/**
+ * Strict D/M/YY format validator - accepts D/M/YY or DD/MM/YY format
+ */
+function isStrictDMYY(input) {
+    if (typeof input !== 'string') return false;
+    const trimmedInput = input.trim();
+    // Match D/M/YY or DD/MM/YY format (1-2 digits, slash, 1-2 digits, slash, 2 digits)
+    const strictRegex = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
+    const match = trimmedInput.match(strictRegex);
+
+    if (!match) return false;
+
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const year = parseInt(match[3], 10);
+
+    // Handle 2-digit years
+    const fullYear = year + (year > 50 ? 1900 : 2000);
+
+    // Validate the date
+    const dateObj = new Date(fullYear, month - 1, day);
+
+    return (
+        dateObj.getFullYear() === fullYear &&
+        dateObj.getMonth() === month - 1 &&
+        dateObj.getDate() === day
+    );
+}
+
+/**
+ * Format date to D/M/YY format (no leading zeros)
+ */
+function formatToDMYY(dateObj) {
+    if (!(dateObj instanceof Date) || isNaN(dateObj)) return null;
+
+    const day = dateObj.getDate(); // Returns 1-31 (no leading zero)
+    const month = dateObj.getMonth() + 1; // Returns 1-12 (no leading zero)
+
+    // Get full year, convert to string, and slice the last 2 digits
+    const shortYear = dateObj.getFullYear().toString().slice(-2);
+
+    return `${day}/${month}/${shortYear}`;
 }

@@ -410,10 +410,11 @@ public:
 		if(ename==String("/save")) {registerInteraction();
 			beepnotify();
 			bool b=saveRequest(se);
-			String nohtmltext=se->get(NOHTML_TEXT);
-			bool nohtml=false;
-			if(nohtmltext=="1") nohtml=true;
-			reply(b,se, nohtml);
+			bool nohtml=se->get(NOHTML_TEXT)=="1";
+			if(b && nohtml) {
+				se->updateValue("response",datamap.get(ID_TEXT).c_str());
+				se->updateValue("type","text/plain");
+			} else reply(b,se,nohtml);
 			return true;
 		}
 		if(ename==String("/tare")) {registerInteraction();
@@ -546,7 +547,8 @@ public:
 				startsetrequest(se);
 			}
 			String response="{\"id\":\""+jsonEscape(newid)+"\"";
-			response+=getArgumentsAsDataKeys(se);
+			String dk=getArgumentsAsDataKeys(se);
+			if(dk.length()>0) response+=String()+","+dk;
 			response+="}";
 			se->insertValue("response",response.c_str());
 			se->insertValue("type","application/json");

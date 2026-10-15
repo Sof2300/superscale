@@ -17,6 +17,11 @@ class InteractiveItem extends ComponentItem {
 		this.activebgcoloroutline=activebgcoloroutline;
 	}
 	getUserInput(){return this.userinput;}
+	setUserInput(newVal){
+		this.element.value = newVal;
+		this.text = newVal;
+		this.userinput = newVal;
+	}
 
 	updateFromUser(){
 //		console.log("updateFromUser -1 :"+this.element.value);
@@ -736,7 +741,6 @@ class TableInteracter2 extends Interacter {
 	select(){this.setState("selected");}
 	highlight(on){this.setState("highlighted");}
 }
-
 
 
 

@@ -3,5 +3,6 @@
 	"sumnames":	["harvest","substrate"], //command names containing this value for which the values are summed
 	"multivalnames": ["spawn"], // command names for which the values are concatened
 	"defaultcommand": "harvest",
-"tags":["fruit","sale","flies","spent","contaminated","compost","storage","glifada"]
+	"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada", "dry-harvest","wet-harvest","overmature-harvest", "moldy-harvest", "larva-in-harvest", "data-trash"],
+"graphdays":3, "graphstart":"1/5/26","graphend":""
 }

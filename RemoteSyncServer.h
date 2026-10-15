@@ -87,18 +87,6 @@ public:
 			return true;
 		}
 
-		if (ename == String("/sync_download_delta")) {
-			handleDeltaDownload(se);
-			//if (captured) *captured = true;
-			return true;
-		}
-
-		if (ename == String("/sync_push_delta")) {
-			handlePushDelta(se);
-			if (captured) *captured = true;
-			return true;
-		}
-
 		if (ename == String("/sync_patch")) {
 			handlePatch(se);
 			if (captured) *captured = true;
@@ -113,19 +101,14 @@ public:
 			return;
 		}
 
-		String clientSizeArg = se->get("size");
 		String clientCRCArg = se->get("crc");
-		String clientTotalArg = se->get("total_size");
 
-		if (clientSizeArg.length() == 0) {
-			se->insertValue("response", "missing size parameter");
+		if (clientCRCArg.length() == 0) {
+			se->insertValue("response", "missing crc parameter");
 			return;
 		}
 
-		size_t clientBaseSize = clientSizeArg.toInt();
-		size_t clientTotalSize = clientTotalArg.length() > 0 ? clientTotalArg.toInt() : clientBaseSize;
-
-		// Lock file access to prevent checking while a push delta is writing
+		// Lock file access
 		if (xSemaphoreTake(fileMutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
 			se->insertValue("response", "SERVER_BUSY");
 			return;
@@ -134,40 +117,22 @@ public:
 		ensureFileExists();
 		size_t serverSize = getLocalSize();
 
-		// 1. If client expects a base larger than the server has, server was reset/truncated.
-		if (clientBaseSize > serverSize) {
+		// Compute CRC of the entire file
+		String serverCRC = getLocalCRC(serverSize);
+		Serial.println(String() + "RemoteSyncServer server crc :'" + serverCRC + "'");
+		Serial.println(String() + "RemoteSyncServer client crc :'" + clientCRCArg + "'");
+		Serial.println(String() + "RemoteSyncServer serverSize :" + serverSize);
+
+		if (serverCRC != clientCRCArg) {
+			// CRC mismatch -> Client must download full file
 			se->insertValue("response", "FULL_UPDATE");
-		}
-		else {
-			// 2. Compute CRC up to the client's base checkpoint (not the whole file)
-			String serverCRC = getLocalCRC(clientBaseSize);
-			Serial.println(String() + "RemoteSyncServer server crc :'" + serverCRC + "'");
-			Serial.println(String() + "RemoteSyncServer client crc :'" + clientCRCArg + "'");
-			Serial.println(String() + "RemoteSyncServer clientBaseSize :" + clientBaseSize + ", clientTotalSize"+clientTotalSize);
-
-			if (serverCRC != clientCRCArg) {
-				// The shared base diverges -> Client must redownload
-				se->insertValue("response", "FULL_UPDATE");
-			} else {
-				// Base perfectly matches! Determine next steps
-				if (serverSize > clientBaseSize) {
-					// Server has appended new data since client's base
-					se->insertValue("response", (String("PULL_DELTA:") + String(serverSize)).c_str());
-				} else {
-					// Server has NO new data
-					if (clientTotalSize > clientBaseSize) {
-						// Client has appended new data locally
-						se->insertValue("response", "PUSH_DELTA");
-					} else {
-						// Both sides match perfectly
-						se->insertValue("response", "UP_TO_DATE");
-					}
-				}
-			}
+		} else {
+			// CRC matches -> Up to date
+			se->insertValue("response", "UP_TO_DATE");
 		}
 
-		Serial.printf("[SYNC-SRV] sync_check clientBase=%u clientTotal=%u serverSize=%u response=%s\n",
-				(unsigned)clientBaseSize, (unsigned)clientTotalSize, (unsigned)serverSize, se->get("response").c_str());
+		Serial.printf("[SYNC-SRV] sync_check serverSize=%u response=%s\n",
+				(unsigned)serverSize, se->get("response").c_str());
 
 		xSemaphoreGive(fileMutex);
 	}
@@ -179,78 +144,6 @@ public:
 		se->insertValue("Download", syncFilename.c_str());
 		se->insertValue("ContentType", "application/octet-stream");
 
-	}
-	void handleDeltaDownload(StringMapEvent *se) {
-		Serial.println(String()+"handleDeltaDownload se:"+se->toString().c_str());
-		size_t offset = se->get("offset").toInt();
-		unsigned size= SIMPLEFS.fileSize(syncFilename.c_str());
-		se->insertValue("Download", syncFilename);
-		String range= String()+"bytes="+offset+"-"+size;
-		se->insertValue("Range", range.c_str());
-		se->insertValue("ContentType", "application/octet-stream");
-		return;
-	}
-
-	unsigned long pushsize=0;
-	bool pushfail=false;
-	void handlePushDelta(StringMapEvent *se) {
-		Serial.println(String()+"handlePushDelta se:"+se->toString().c_str());
-		/*
-        String offsetArg = se->get("offset");
-        size_t offset = offsetArg.length() ? offsetArg.toInt() : 0;
-        String payload = se->get("plain");
-		 */
-		String offsetArg = se->get("offset");
-		size_t baseOffset = offsetArg.length() ? offsetArg.toInt() : 0;
-
-		bool isChunk = (se->get("is_chunk") == "1");
-
-		if (isChunk) {
-			String payload = se->get("content");
-			size_t index = se->get("index").toInt(); // Get chunk index
-
-			Serial.println(String()+"handlePushDelta payload:"+payload+", baseOffset:"+baseOffset);
-
-			if (payload.length() == 0) return;
-			if (xSemaphoreTake(fileMutex, pdMS_TO_TICKS(5000)) != pdTRUE) return;
-
-			ensureFileExists();
-			size_t currentSize = getLocalSize();
-			size_t expectedPos = baseOffset + index; //  Accurate offset calculation for large files
-			if (expectedPos != currentSize) {
-				Serial.printf("[SYNC-SRV] CONFLICT: expectedPos=%u currentSize=%u\n", expectedPos, currentSize);
-				xSemaphoreGive(fileMutex);
-				return;
-			}
-			unsigned written=SIMPLEFS.appendToFile(syncFilename.c_str(), payload, false);
-			Serial.println(String()+"[SYNC-SRV] handlePushDelta :");
-			pushsize+=written;
-			xSemaphoreGive(fileMutex);
-			if (written != payload.length()) pushfail=true;
-
-		} else {
-			if (pushsize== 0) {
-				Serial.println(String()+"handlePushDelta empty payload, offset:"+baseOffset);
-				se->insertValue("response", "empty delta payload");
-				return;
-			}
-
-			// Lock file for atomic modification
-			if (xSemaphoreTake(fileMutex, pdMS_TO_TICKS(5000)) != pdTRUE) {
-				se->insertValue("response", "SERVER_BUSY");
-				return;
-			}
-
-			if(pushfail) se->insertValue("response", "failed to append delta payload");
-			else {
-				size_t newSize = getLocalSize();
-				Serial.printf("[SYNC-SRV] push_delta SUCCESS: baseOffset=%u pushsize=%u newSize=%u\n",
-						(unsigned)baseOffset, (unsigned)pushsize, (unsigned)newSize);
-				se->insertValue("response", "OK");
-			}
-			pushsize=0;
-			pushfail=false;
-		}
 	}
 
 	// Parse Content-Range header: "bytes start-end/total"
@@ -432,7 +325,7 @@ public:
 	}
 
 	static std::vector<GenString> getUrlNames() {
-		return {"/sync_check", "/sync_push_delta", "/sync_download_delta","/sync_download", "/sync_patch"};
+		return {"/sync_check", "/sync_download", "/sync_patch"};
 	}
 };
 

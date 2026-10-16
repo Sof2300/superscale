@@ -1,7 +1,14 @@
 #ifndef WIFIMAN_H
 #define WIFIMAN_H
+#ifndef x86BUILD
 #include <WiFi.h>
 #include "esp_wifi.h"	// improve performance
+#include <ESPmDNS.h>
+#endif
+
+#ifndef DEFMDNS
+#define DEFMDNS "superscale"
+#endif
 
 //////////////////////////////////////
 
@@ -65,6 +72,22 @@ public:
 		  previousMillis = currentMillis;
 		  return true;
 		}
+		return false;
+	}
+
+	static bool startMDNS(const char *name=DEFMDNS){
+#ifndef x86BUILD
+		if(!name || strlen(name)==0) name=DEFMDNS;
+		MDNS.end();
+		if(MDNS.begin(name)){
+			MDNS.addService("http", "tcp", 80);
+			Serial.print("mDNS responder started: http://");
+			Serial.print(name);
+			Serial.println(".local");
+			return true;
+		}
+		Serial.println("Error setting up mDNS responder!");
+#endif
 		return false;
 	}
 };

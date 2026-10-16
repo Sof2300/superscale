@@ -6,12 +6,6 @@
 
 #include "SimpleWebServer.h"
 
-//#define USEMDNS true
-/*
-#if USEMDNS
-#include <ESPmDNS.h>
-#endif
- */
 class JavascriptBase {
 
 public:
@@ -33,19 +27,10 @@ class BasicServer : public DefaultEventEmitter {
 	bool emitheaders=true;
 	bool isChunk=false;
 public:
-	BasicServer(String mdns):server(80), mdns_name(mdns){}
+	BasicServer(String mdns=""):server(80), mdns_name(mdns){}
 
 	void begin(){
 		Serial.println("BasicServer::begin");
-		/*
-#if USEMDNS
-		bool mdnsstarted=false;
-		if(mdns_name.length()==0) mdns_name="EspServer";
-		mdnsstarted=MDNS.begin(mdns_name.c_str());
-		Serial.println(String()+"mdns started with name : "+mdns_name);
-
-#endif
-		 */
 		auto that=this;
 
 		//	server.server.onNotFound(handlenotfoundstat);
@@ -83,19 +68,7 @@ public:
 
 		server.begin(mdns_name);                    //Start the server
 		Serial.println("Server listening");
-		/*
-#if USEMDNS
-		if(mdnsstarted) MDNS.addService("http", "tcp", 80);
-#endif
-		 */
-
 	}
-	/*#if USEMDNS
-	void renameMDNS(String newmdnsname){
-		if(newmdnsname.length()>0){ MDNS.setInstanceName(newmdnsname.c_str());mdns_name=newmdnsname;}
-	}
-#endif
-	 */
 
 	void setEmitHeaders(bool b){emitheaders=b;}
 	String getArgument(String argname){
@@ -210,9 +183,6 @@ public:
 			Serial.println(String()+"BasicServer::handleRootPath datapacket added to nmap:"+(unsigned long)datapacket.data+" datapacket.len:"+datapacket.len);
 		}
 
-#if USEMDNS
-		if(nmap.exists("mdnsname")) {server.setMdnsName(nmap.values["mdnsname"].c_str());}
-#endif
 		delay(1);
 		/* To solve this crash:
 		 	E (337977) task_wdt: Task watchdog got triggered. The following tasks did not reset the watchdog in time:

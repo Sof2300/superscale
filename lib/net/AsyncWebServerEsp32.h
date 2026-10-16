@@ -1,7 +1,7 @@
 #ifndef WEBSERVERESP32
 #define WEBSERVERESP32
 
-#define USEMDNS true
+#define USEMDNS false
 
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>

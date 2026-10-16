@@ -30,7 +30,6 @@ ideas for enhancements
 
 #ifndef x86BUILD
 #define ESP32BUILD
-//#define USEMDNS true
 #endif
 
 // HX711 circuit wiring
@@ -212,6 +211,7 @@ void setup() {
 	configmap->on("ssid",&configman);
 	configmap->on("password",&configman);
 	configmap->on("mdns",&configman);
+	configmap->on("mdns",&wifisubman);
 	configmap->on("apssid",&configman);
 	configmap->on("appassword",&configman);
 

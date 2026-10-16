@@ -59,6 +59,8 @@
 
 #define INACTIVITY_DURATION_SEC_KEYWORD "inactivitydurationsec"
 //#define INACTIVITY_TIMEOUT 3600000
+#define COOLDOWN_TIMEOUT_MS_KEYWORD "cooldown-timeout-ms"
+#define DEFAULT_COOLDOWN_TIMEOUT_MS 2000
 
 #include "BlockInfoManager.h"
 
@@ -143,8 +145,31 @@ class DataManager: public EventListener {
 	unsigned long tempMessageExpireAt = 0;
 	bool tempMessageActive = false;
 
+//	unsigned long cooldownTimeoutMs = DEFAULT_COOLDOWN_TIMEOUT_MS;
+	unsigned long lastValidSaveTime = 0;
+
 public:
 	bool fileready=true;
+
+	unsigned long getCooldownTimeoutMs() {
+		String val = dataconfigmap.get(COOLDOWN_TIMEOUT_MS_KEYWORD);
+		if (val.length() > 0) {
+			long t = val.toInt();
+			if (t >= 0) return (unsigned long)t;
+		}
+		return DEFAULT_COOLDOWN_TIMEOUT_MS;
+	}
+
+	bool isCooldownActive() {
+		unsigned long timeout = getCooldownTimeoutMs();
+		if (timeout == 0) return false;
+		if (millis() - lastValidSaveTime < timeout) return true;
+		return false;
+	}
+
+	void markSaveValidated() {
+		lastValidSaveTime = millis();
+	}
 
 
 	DataManager (): multiman(&datamap,&configstate,&dataorder), pileman(&datamap,&(multiman.getMap()),&configstate,&scalemap){}
@@ -238,6 +263,9 @@ public:
 		configstate.set(BLOCKGENERATE_KEYTEXT,"0");
 		configstate.set(BLOCKRFIDIDSAVE_KEYTEXT,"0");
 		configstate.set(DATAVERSION_KEYTEXT,"0");
+
+		String cooldownStr = dataconfigmap.get(COOLDOWN_TIMEOUT_MS_KEYWORD);
+		if (cooldownStr.length() == 0) dataconfigmap.set(COOLDOWN_TIMEOUT_MS_KEYWORD, String(DEFAULT_COOLDOWN_TIMEOUT_MS));
 
 		multiman.loadFromFile();
 	}
@@ -957,6 +985,7 @@ private:
 			//			Serial.println(String()+"DataManager::rangeSaveRequest 6 :"+(millis()-ts)+"ms");ts=millis();
 			tosave="";
 			incrementDatafileUpdateID();
+			markSaveValidated();
 		}
 		//	TIMEPROFILER.printick("rangeSaveRequest","postappendloop");
 		datamap.update(ID_TEXT,lastkey);// set last id
@@ -971,6 +1000,11 @@ private:
 public:
 	bool saveRequest(StringMapEvent *se){
 		Serial.println("DataManager::saveRequest :");
+		if (isCooldownActive()) {
+			Serial.println(String()+"DataManager::saveRequest: cooldown active ("+String(millis()-lastValidSaveTime)+"ms < "+String(getCooldownTimeoutMs())+"ms)");
+			beepError();
+			return false;
+		}
 		busysaving=true;
 		if(SIMPLEFS.getFreeSpace()<MINIMUMSPACE) {
 			Serial.print(String()+"Disk full, free space : "+SIMPLEFS.getFreeSpace());
@@ -1037,6 +1071,11 @@ public:
 	bool saveCurrent(){
 //		Serial.print("DataManager::saveCurrent :");
 		registerInteraction();
+		if (isCooldownActive()) {
+			Serial.println(String()+"DataManager::saveCurrent: cooldown active ("+String(millis()-lastValidSaveTime)+"ms < "+String(getCooldownTimeoutMs())+"ms)");
+			beepError();
+			return false;
+		}
 		if(!savableData()) {
 			Serial.println(String()+"DataManager:saveRequest not savable:");
 			beepError();
@@ -1074,6 +1113,7 @@ public:
 				beeper->simpleBeep(SAVEFREQ,SAVELENGTH);
 			}*/
 			incrementDatafileUpdateID();
+			markSaveValidated();
 		}
 		if(changed && configstate.get(PILE_KEYTEXT)=="1") pileman.pop();
 

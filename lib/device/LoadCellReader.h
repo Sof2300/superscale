@@ -15,6 +15,12 @@ class Median {
 	float sample[MAXMEDIAN];
 	unsigned valuecount=0, newindex=0;
 public:
+	void reset(float val) {
+		sample[0] = val;
+		valuecount = 1;
+		newindex = 1;
+	}
+
 	bool addValue(float val){
 		if(valuecount<MAXMEDIAN) valuecount++;
 		sample[newindex]=val;
@@ -26,7 +32,7 @@ public:
 	float getMedian(){	//   Serial.println(String()+"Median: valuecount:"+valuecount+" newindex:"+newindex);
 		if(!valuecount) return 0;
 		float sample2[MAXMEDIAN];
-		for(int i=0;i<MAXMEDIAN;i++){
+		for(int i=0;i<valuecount;i++){
 			sample2[i]=sample[i];
 			//     Serial.println(String()+"Median: sample:"+i+" value:"+sample[i]);
 		}
@@ -55,7 +61,7 @@ class LoadCellReader {
 	float value=0, avg=0;
 	Median median;
 	bool first=true;
-	unsigned long ts2=0;
+//	unsigned long ts2=0;
 //	float alpha=-479.56, beta=64100;	//5kg load cell
 	float alpha=479.64, beta=-58800;	//5kg load cell
 	float initval, tareval=0;
@@ -69,31 +75,31 @@ public:
 		scale.begin(doutpin,sckpin);
 	}
 private:
-	void tare (long val){tareval=val+tareval;Serial.println(String()+"tare to value :"+val);}
+	void tare (float grossVal){
+		tareval=grossVal;
+		median.reset(grossVal);
+		value=0;
+		newval=true;
+		Serial.println(String()+"tare to gross value :"+grossVal);
+	}
 public:
-	void tare (){tare(value);value=0;} // could clear median too, no ?
+	void tare (){tare(median.getMedian());}
 
 	void run(){
 		if (scale.is_ready()) {
-		//	long ts=millis();
 			rawreading = scale.read();
 			newval=true;
-			float tr=(float)(rawreading-beta)/alpha;
+			float calibratedreading=(float)(rawreading-beta)/alpha;
 
-			if(first) {initval=tr;tare(tr);}
+			if(first) {
+				first=false;
+				initval=calibratedreading;
+				tare(calibratedreading);
+				return;
+			}
 
-			median.addValue(tr);
-			tr=tr-tareval;
-			if(first) {avg=tr;first=false;}
-			else avg=avg*.8+tr*.2;
-
+			median.addValue(calibratedreading);
 			value=median.getMedian()-tareval;
-			ts2=millis();
-
-//	 		Serial.println(String()+"LoadCellReader value :"+value+", tr:"+tr+" raw:"+rawreading);
-
-			//   Serial.println(reading);			//   Serial.println (ts-ts2);
-//			Serial.print(Serial println "HX711 reading raw: "+reading+", transformed : "+value+"g inter-reading time "+(ts-ts2)+"ms"+", avg :"+avg+", med :"+median.getMedian());
 		}
 	}
 };

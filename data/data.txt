@@ -8565,7 +8565,7 @@
 13/7/26,N350,harvest,187
 13/7/26,N348,harvest,87
 13/7/26,Z64,harvest,78
-13/7/26,Ζ96,harvest,204
+13/7/26,Z96,harvest,204
 13/7/26,M176,harvest,86
 14/7/26,M201,harvest,93
 15/7/26,M170,harvest,218

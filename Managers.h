@@ -27,17 +27,26 @@ class WifiSubMan: public EventListener
 public:
 	WifiSubMan(DataMap *config0){sconfig=config0;}
 
+	void startMDNS(String name=""){
+		if(name.length()==0 && sconfig && sconfig->exists("mdns")) name=sconfig->get("mdns");
+		if(name.length()==0) name=DEFMDNS;
+		WifiMan::startMDNS(name.c_str());
+	}
+
 	bool hasAP(){
 		if(WifiMan::getMode()=="AP") return true;
 		return false;
 	}
 	String getMode(){return WifiMan::getMode();}
-	void run(){WifiMan::reconnectIfNeeded();}
+	void run(){
+		if(WifiMan::reconnectIfNeeded()) startMDNS();
+	}
 	bool notify(GenString ename, Event *e){return notify(String(ename.c_str()),e);}
 	bool notify(String ename, Event *e){
 		StringMapEvent *se=0;
-		if(e->isClassType("StringMapEvent")) se=(StringMapEvent *)e;
+		if(e && e->isClassType("StringMapEvent")) se=(StringMapEvent *)e;
 		if(ename=="/switchToStation" || ename=="/switchToAP") {
+			if(!se) return false;
 			String ssid=se->values["ssid"].c_str(),password=se->values["password"].c_str(),nmdnsname=se->values["mdns"].c_str();
 			if(!ssid.length()) return false;
 			if(ename=="/switchToStation"){
@@ -54,10 +63,17 @@ public:
 					WifiMan::connectAP(ssid.c_str(),password.c_str());	// contains delay rather should be called from the main loop
 				}
 			}
-			if(nmdnsname!=sconfig->get("mdns")) {sconfig->update("mdns",nmdnsname);}
+			if(nmdnsname.length()>0 && nmdnsname!=sconfig->get("mdns")) {sconfig->update("mdns",nmdnsname);}
 			if(getMode()!=sconfig->get("mode")) {sconfig->update("mode",getMode());}			// ssid/password got from server are not saved in the data -> save to sconfig			// if ssid not provided, retreive from sconfig			//saveSettings();
+			startMDNS();
 			return false;
 		};
+		if(ename=="mdns") {
+			StringEvent *sve=0;
+			if(e && e->isClassType("StringEvent")) sve=(StringEvent *)e;
+			startMDNS(sve ? sve->str.c_str() : sconfig->get("mdns"));
+			return true;
+		}
 		return false;
 	}
 
@@ -89,6 +105,7 @@ public:
 			if(getMode()!=sconfig->get("mode")) sconfig->update("mode","AP");
 		}
 		sconfig->update("ip",WifiMan::getIP());
+		startMDNS();
 		return connected;
 	}
 };

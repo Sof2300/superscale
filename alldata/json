@@ -1,22 +1,16 @@
-﻿{"data":{"date":"","id":"N77","command":"harvest","argument":""},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":125,"blockdate":"24/11/25","flushes":[{"ts":"4/2/26","ts2":"5/2/26","val":"842"},{"ts":"17/2/26","ts2":"19/2/26","val":"308"},{"ts":"6/3/26","ts2":"7/3/26","val":"213"},{"ts":"21/3/26","val":"232"},{"ts":"6/4/26","val":"36"},{"ts":"17/4/26","ts2":"19/4/26","val":"127"},{"ts":"1/5/26","val":"35"},{"ts":"11/5/26","ts2":"12/5/26","val":"208"}],"flushnumber":8,"formula":"Pn3x6","history":"24/11/25,N77,species,HUn
-24/11/25,N77,blockdate,24/11/25
-24/11/25,N77,formula,Pn3x6
-24/11/25,N77,spawncode,#C4AD-AAA
-24/11/25,N77,spawn,1/8
-4/2/26,N77,harvest,487
-5/2/26,N77,harvest,355
-17/2/26,N77,harvest,195
-19/2/26,N77,harvest,113
-6/3/26,N77,harvest,142
-7/3/26,N77,harvest,71
-21/3/26,N77,harvest,65
-21/3/26,N77,harvest,167
-6/4/26,N77,harvest,36
-17/4/26,N77,harvest,23
-19/4/26,N77,harvest,104
-1/5/26,N77,harvest,35
-11/5/26,N77,harvest,72
-12/5/26,N77,harvest,32
-11/5/26,N77,harvest,72
-12/5/26,N77,harvest,32
-","id":"N77","spawn":"#C4AD-AAA, 1/8","species":"HUn","substrate":"","totalharvest":2001,"totalsubstrate":1590},"multi":{},"pile":{},"config":{"boottime":"15/10/26 12:54:18","defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"ip":"","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"","block-generate":0,"block-rfid-id-save":0,"currentmessage":"","data-version":0,"fifo":0,"free-space":851968,"multi":0,"pile":0,"save-on-set":0}}
+﻿{"data":{"date":"","id":"N78","command":"harvest","argument":""},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":128,"blockdate":"24/11/25","flushes":[{"ts":"22/1/26","val":"751"},{"ts":"3/2/26","val":"264"},{"ts":"15/2/26","val":"282"},{"ts":"27/2/26","val":"203"},{"ts":"12/3/26","ts2":"13/3/26","val":"191"},{"ts":"26/3/26","ts2":"5/4/26","val":"357"}],"flushnumber":6,"formula":"Pn3x6","history":"24/11/25,N78,species,HUn
+24/11/25,N78,blockdate,24/11/25
+24/11/25,N78,formula,Pn3x6
+24/11/25,N78,spawncode,#C4AD-AAA
+24/11/25,N78,spawn,1/8
+22/1/26,N78,harvest,751
+3/2/26,N78,harvest,264
+15/2/26,N78,harvest,282
+27/2/26,N78,harvest,203
+12/3/26,N78,harvest,76
+13/3/26,N78,harvest,115
+26/3/26,N78,harvest,75
+4/4/26,N78,harvest,89
+5/4/26,N78,harvest,193
+","id":"N78","spawn":"#C4AD-AAA, 1/8","species":"HUn","substrate":"","totalharvest":2048,"totalsubstrate":1590},"multi":{},"pile":{},"config":{"boottime":"15/10/26 20:47:05","defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"ip":"","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"985 | Tzizika set ID to S69, press button to save | 0
+990 | Tzizika set ID to S68, press button to save | 0","block-generate":0,"block-rfid-id-save":0,"currentmessage":"Tzizika set ID to S68, press button to save","data-version":0,"fifo":0,"free-space":851968,"multi":0,"pile":0,"save-on-set":0}}

@@ -1,9 +1,10 @@
 F53E345B,meta:command
+04E72E63D32A81,meta:command
 C5A522DE,meta:erase
+049E4263D32A81,meta:erase
 45CAF8DD,meta:undo
+046FCD52D62A81,meta:undo
 75A622DE,meta:rfid-undo
+04EA8A5ED52A81,meta:rfid-undo
 62F8C256,command:fruit
-C2E1CB56,command:contamn
-04942665D32A81,K1
-D24DCC56,S68
-E230C656,S69
+04C8B55FD52A81,command:contaminated

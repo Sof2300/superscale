@@ -52,7 +52,7 @@ Refer to `data/index.html` and the JS files in `data/` for the main client imple
 ## HTTP API / Endpoints
 The device exposes a number of endpoints through the built-in `BasicServer`. High-level endpoints include:
 
-- Data & control: `/set`, `/setBypass`, `/save`, `/tare`, `/undo`, `/generateID`, `/json`, `/clear`, `/clearAll`, `/filewrite`, `/deleteDataFile`
+- Data & control: `/set`, `/setBypass`, `/save`, `/tare`, `/undo`, `/generateID`, `/json`, `/clear`, `/clearAll`, `/message`, `/clearmessages`, `/filewrite`, `/deleteDataFile`
 - Multi/pile: endpoints provided by `MultiManager` and `PileManager` (see `DataManager::getUrlNames`).
 - Prices / screen controls (if TFT enabled): `/price/clear`, `/price/add`, `/price/set`, `/price/setsum`, `/price/json`, `/price/select`, `/price/screen`.
 - Remote sync (file synchronization endpoints by `RemoteSyncServer`): `/sync_check`, `/sync_push_delta`, `/sync_download_delta`, `/sync_download`, `/sync_patch`.

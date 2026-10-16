@@ -445,6 +445,8 @@
             var bootTime = (tobj && tobj.config && tobj.config.boottime) || "";
             var el = geid('messageToggle');
             if (!el) return;
+            var clearMessagesButton = geid('clearMessagesButton');
+            if (clearMessagesButton) clearMessagesButton.style.display = all.trim().length ? '' : 'none';
 			
 			if(cacheddata.cur==cur && cacheddata.all==all && cacheddata.state==messageToggleState) return; // nothing to update
 			cacheddata.cur=cur;
@@ -563,9 +565,36 @@
     // Attach click handler when DOM ready (startScript runs on body onload)
     function attachMessageToggleHandler() {
         var el = geid('messageToggle');
-        if (!el || el.messageToggleHandlerAttached) return;
-        el.addEventListener('click', toggleMessageView);
-        el.messageToggleHandlerAttached = true;
+        if (el && !el.messageToggleHandlerAttached) {
+            el.addEventListener('click', toggleMessageView);
+            el.messageToggleHandlerAttached = true;
+        }
+
+        var clearButton = geid('clearMessagesButton');
+        if (clearButton && !clearButton.clearMessagesHandlerAttached) {
+            clearButton.addEventListener('click', clearMessages);
+            clearButton.clearMessagesHandlerAttached = true;
+        }
+    }
+
+    function clearMessages() {
+        var button = geid('clearMessagesButton');
+        if (!button || button.disabled) return;
+        button.disabled = true;
+
+        loadRemote('/clearmessages', function () {
+            button.disabled = false;
+            var payload = dataobj && dataobj.configstate ? dataobj.configstate : dataobj;
+            if (payload) {
+                payload.currentmessage = '';
+                payload.allmessages = '';
+            }
+            updateMessageToggle(dataobj);
+        }, function () {
+            button.disabled = false;
+            console.error('Unable to clear messages');
+            alert('Unable to clear messages. Please try again.');
+        });
     }
 </script>
 
@@ -583,6 +612,7 @@
         </div>
             </td><td>
         <div style="float:right;font-size: 70%">
+            <button id="clearMessagesButton" title="Clear messages" type="button" style="display:none;font-size: 120%;margin-left: 0px">⊘ </button><br>
             <a target="_blank" href="readme.txt">Help</a><br>
 
             <a target="_blank" href="viz/BlockViz.html">Block Viz </a><br>

@@ -4,13 +4,13 @@
 		"price":13,
 		"names":["POm","POn","POpag"]
 	},{
-		"title":"Elm/Golden/Pink Oyster",
+		"title":"Elm Oyster",
 		"price":15,
-		"names":["PCg","PCme","PSn", "HUlc","HU22","HUn","HU24"]
+		"names":["HUlc","HU22","HUn","HU24"]
 	},{
-		"title":"Bpearl",
+		"title":"Bpearl/Golden/Pink",
 		"price":17,
-		"names":["Bpearl","BPearl"]
+		"names":["PCg","PCme","PSn","Bpearl","BPearl"]
 	},{
 		"title":"King Oyster",
 		"price":18,
@@ -20,21 +20,16 @@
 		"price":22,
 		"names":["PAb"]
 	},{
-		"title":"Shiitake/Hericium/Chestnut",
-		"price":22,
+		"title":"Hericium",
+		"price":24,
 		"names":["HEg","HEn"]
 	},{
-		"title":"Shiitake/Hericium/Chestnut",
+		"title":"Shiitake/Pioppino/Flammulina",
 		"price":24,
 		"names":["LEm","LEfr","LE3790","LEn","AA22","PNb","FVn"]
 	},{
 		"title":"Reishi/Trametes",
 		"price":80,
 		"names":["GLg","GLzam","TVt"]
-	} ,
-	{
-		"title":"Other",
-		"price":15,
-		"names":["Ot","ot","other","X","x"]
 	} 
 	]

@@ -161,7 +161,7 @@ public:
 	void initRemoteSync(const String &filename){ remoteSyncServer.init(filename); }
 
 	std::vector<GenString> getUrlNames(){
-		std::vector<GenString>vect={"/set","/setBypass","/save","/tare", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/setBypass","/undo","/generateID","/message","/get","/generateIDGet"},
+		std::vector<GenString>vect={"/set","/setBypass","/save","/tare", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/setBypass","/undo","/generateID","/message","/clearmessages","/get","/generateIDGet"},
 				v2=multiman.getUrlNames(), v3=pileman.getUrlNames(), v4=RemoteSyncServer::getUrlNames();
 		for(GenString s:v2) vect.push_back(s);
 		for(GenString s:v3) vect.push_back(s);
@@ -389,6 +389,15 @@ public:
 			bool nohtml=false;
 			if(nohtmltext=="1") nohtml=true;
 			reply(changed, se, nohtml);
+			return true;
+		}
+		if(ename==String("/clearmessages")) {
+			registerInteraction();
+			beepnotify();
+			configstate.update(CURRENTMESSAGE_TEXT, "");
+			configstate.update(ALLMESSAGES_TEXT, "");
+			resetMessageState();
+			reply(true, se);
 			return true;
 		}
 		if(ename==String("/set")) {registerInteraction();
@@ -1201,4 +1210,3 @@ void statSave(DataManager *dataman){
 };
  */
 #endif
-

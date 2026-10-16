@@ -80,7 +80,7 @@ class HarvestGraph {
                                 tooltipItems.forEach(function(tooltipItem) {
                                     total += tooltipItem.parsed.y;
                                     var species = tooltipItem.dataset.label;
-                                    var price = prices[species] || 0;
+                                    var price = prices[species] || prices[species.toLowerCase()] || prices['other'] || 0;
                                     totalValue += tooltipItem.parsed.y * price;
                                 });
 
@@ -215,6 +215,8 @@ class HarvestGraph {
             'PSn': 'rgba(255, 182, 193, 0.7)',     // Light pink
 
             // Purples (unknown/other)
+            'other': 'rgba(128, 0, 128, 0.7)',
+            'Other': 'rgba(128, 0, 128, 0.7)',
             'default': 'rgba(128, 0, 128, 0.7)'     // Purple
         };
 
@@ -255,6 +257,8 @@ class HarvestGraph {
             'GLzam': 'rgba(255, 0, 0, 1)',
             'TVt': 'rgba(128, 0, 0, 1)',
             'PSn': 'rgba(255, 182, 193, 1)',
+            'other': 'rgba(128, 0, 128, 1)',
+            'Other': 'rgba(128, 0, 128, 1)',
             'default': 'rgba(128, 0, 128, 1)'
         };
     }
@@ -286,13 +290,24 @@ class HarvestGraph {
         if (xhr.status === 200) {
             try {
                 var priceData = JSON.parse(xhr.responseText);
+                var minPrice = -1;
                 for (var i = 0; i < priceData.length; i++) {
                     var entry = priceData[i];
                     var price = entry.price;
+                    if (minPrice < 0 || price < minPrice) minPrice = price;
                     var names = entry.names;
                     for (var j = 0; j < names.length; j++) {
                         this.prices[names[j]] = price;
+                        this.prices[names[j].toLowerCase()] = price;
                     }
+                    if (entry.title) {
+                        this.prices[entry.title] = price;
+                        this.prices[entry.title.toLowerCase()] = price;
+                    }
+                }
+                if (!this.prices['other'] && minPrice >= 0) {
+                    this.prices['other'] = minPrice;
+                    this.prices['Other'] = minPrice;
                 }
                 console.log('HarvestGraph: Loaded prices for', Object.keys(this.prices).length, 'species');
             } catch (e) {
@@ -315,8 +330,9 @@ class HarvestGraph {
             for (var d = 0; d < sortedDates.length; d++) {
                 speciesTotal += harvestData[species][sortedDates[d]] || 0;
             }
-            if (speciesTotal > 0 && this.prices[species]) {
-                totalValue += speciesTotal * this.prices[species];
+            var p = this.prices[species] || this.prices[species.toLowerCase()] || this.prices['other'] || 0;
+            if (speciesTotal > 0 && p > 0) {
+                totalValue += speciesTotal * p;
                 totalQuantity += speciesTotal;
             }
         }
@@ -404,6 +420,11 @@ class HarvestGraph {
                 var value = parseFloat(argument);
 
                 if (!isNaN(value)) {
+                    if (!speciesMap[id]) console.warn("HarvestGraph: harvest has no species mapping and will not appear in a dataset", {
+                        date:date,
+                        id:id,
+                        grams:value
+                    });
                     if (!harvestData[species]) {
                         harvestData[species] = {};
                     }
@@ -424,6 +445,15 @@ class HarvestGraph {
         }).sort(function(a, b) {
             return this.parseDate(a) - this.parseDate(b);
         }.bind(this));
+
+        var rawHarvestData = {};
+        for (var s = 0; s < speciesList.length; s++) {
+            rawHarvestData[speciesList[s]] = Object.assign({}, harvestData[speciesList[s]]);
+        }
+        this.rawHarvestData = rawHarvestData;
+        this.rawSortedDates = sortedDates.slice();
+        this.rawSpeciesList = speciesList.slice();
+        this.rawPriceInfo = this.calculateAveragePrice(rawHarvestData, speciesList, sortedDates);
 
         // Apply date range filter
         if (startDate || endDate) {
@@ -593,6 +623,11 @@ class HarvestGraph {
         console.log('HarvestGraph: Average harvest:', avgHarvest);
 
         this.chart.update('none');
+
+        this.harvestData = harvestData;
+        this.sortedDates = sortedDates;
+        this.speciesList = speciesList;
+        this.lastPriceInfo = priceInfo;
 
         // Calculate and return average price
         return priceInfo;

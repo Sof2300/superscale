@@ -302,7 +302,7 @@ void setup() {
 	beeper.simpleBeep(SETFREQ, STARTLENGTH);
 	beeper.simpleBeep(SETFREQ, STARTLENGTH);
 	if (wifisubman.hasAP()) beeper.simpleBeep(ERRORFREQ, STARTLENGTH);
-	Serial.println("3 beeps here");
+//	Serial.println("3 beeps here");
 
 /*
     beeper.simpleBeep(SETBLOCKFREQ,SETBLOCKLENGTH);

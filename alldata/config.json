@@ -5,5 +5,5 @@
 	"defaultcommand": "harvest",
 	"cooldown-timeout-ms": 2000,
 	"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada", "dry-harvest","wet-harvest","overmature-harvest", "moldy-harvest", "larva-in-harvest", "data-trash"],
-"graphdays":3, "graphstart":"1/5/26","graphend":""
+	"graphdays":3, "graphstart":"1/5/26","graphend":""
 }

@@ -9,6 +9,7 @@
 
 #include "lib/datastruct/DataMap.h"
 #include "lib/TimeUtil.h"
+#include "lib/net/WifiMan.h"
 #include "RemoteSyncServer.h"
 
 #define DATE_TEXT "date"
@@ -45,11 +46,12 @@
 #define WEIGHT_TEXT "weight"
 #define CANCEL_TEXT "cancel"
 
-#define BLOCKGENERATE_KEYTEXT "block-generate"
-#define BLOCKRFIDIDSAVE_KEYTEXT "block-rfid-id-save"
+#define DISABLEGENERATE_KEYTEXT "disable-generate"
+#define DISABLERFIDIDSAVE_KEYTEXT "disable-rfid-id-save"
 #define SAVEONSET_KEYTEXT "save-on-set"
 #define DATAVERSION_KEYTEXT "data-version"
 #define FREESPACE_KEYTEXT "free-space"
+#define TRANSIENTTAG_KEYTEXT "transient-tag"
 
 #define LOWERSCALEPACK "command"
 
@@ -125,7 +127,7 @@ void statSave(DataManager *dataman);
 class DataManager: public EventListener {
 	DataMap datamap, dataconfigmap, blockinfo, scalemap, configstate;
 	std::vector<String> dataorder;//={"date","id", "command","argument"};
-	std::vector<String> configvars={MULTI_KEYTEXT,PILE_KEYTEXT,SAVEONSET_KEYTEXT,BLOCKGENERATE_KEYTEXT,BLOCKRFIDIDSAVE_KEYTEXT,PILE_FIFO_KEYTEXT};
+	std::vector<String> configvars={MULTI_KEYTEXT,PILE_KEYTEXT,SAVEONSET_KEYTEXT,DISABLEGENERATE_KEYTEXT,DISABLERFIDIDSAVE_KEYTEXT,PILE_FIFO_KEYTEXT};
 
 	MultiManager multiman;
 	PileManager pileman;
@@ -260,9 +262,10 @@ public:
 		configstate.set(MULTI_KEYTEXT,"0");	//should be in another non saved map ?
 
 		configstate.set(SAVEONSET_KEYTEXT,"0");
-		configstate.set(BLOCKGENERATE_KEYTEXT,"0");
-		configstate.set(BLOCKRFIDIDSAVE_KEYTEXT,"0");
+		configstate.set(DISABLEGENERATE_KEYTEXT,"0"); // maybe should not override config file value ?
+		configstate.set(DISABLERFIDIDSAVE_KEYTEXT,"0");	// maybe should not override config file value ?
 		configstate.set(DATAVERSION_KEYTEXT,"0");
+		configstate.set(TRANSIENTTAG_KEYTEXT,"1"); // maybe should not override config file value ?
 
 		String cooldownStr = dataconfigmap.get(COOLDOWN_TIMEOUT_MS_KEYWORD);
 		if (cooldownStr.length() == 0) dataconfigmap.set(COOLDOWN_TIMEOUT_MS_KEYWORD, String(DEFAULT_COOLDOWN_TIMEOUT_MS));
@@ -511,7 +514,7 @@ public:
 				se->updateValue("type","text/plain");
 				return true;
 			}
-			if(configstate.get(BLOCKGENERATE_KEYTEXT)=="1"){
+			if(configstate.get(DISABLEGENERATE_KEYTEXT)=="1"){
 				beepnotify();beepnotify();
 				String id=datamap.get(ID_TEXT);
 				se->updateValue("response",id.c_str());
@@ -560,7 +563,7 @@ public:
 				return true;
 			}
 			String newid;
-			if(configstate.get(BLOCKGENERATE_KEYTEXT)=="1"){
+			if(configstate.get(DISABLEGENERATE_KEYTEXT)=="1"){
 				beepnotify();beepnotify();
 				newid=datamap.get(ID_TEXT);
 			} else {
@@ -1027,7 +1030,6 @@ public:
 	}
 private:
 	bool setRequest(StringMapEvent *se){ // maybe should find which datamap contain this key, then make the change // when we get a set request :
-
 		if(testRangeRequest(se->get(ID_TEXT))) {se->values.erase(ID_TEXT);}
 		bool changed=false;
 		for(auto it=se->values.begin();it!=se->values.end();it++){	// go through request arguments
@@ -1219,14 +1221,15 @@ public:
 			beeper->simpleBeep(freq,length);}
 		return true;
 	}
-
+	// Only change variables we know
 	bool discardValue(String key, String val){ // don't update if value "" for most configstate vars
 		if(key==SAVEONSET_KEYTEXT && val.length()==0) return true;
 		if(key==PILE_KEYTEXT && val.length()==0) return true;
 		if(key==PILE_FIFO_KEYTEXT && val.length()==0) return true;
 		if(key==MULTI_KEYTEXT && val.length()==0) return true;
-		if(key==BLOCKGENERATE_KEYTEXT && val.length()==0) return true;
-		if(key==BLOCKRFIDIDSAVE_KEYTEXT && val.length()==0) return true;
+		if(key==DISABLEGENERATE_KEYTEXT && val.length()==0) return true;
+		if(key==DISABLERFIDIDSAVE_KEYTEXT && val.length()==0) return true;
+		if(key==TRANSIENTTAG_KEYTEXT && val.length()==0) return true;
 		return false;
 	}
 

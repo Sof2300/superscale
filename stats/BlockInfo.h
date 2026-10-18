@@ -41,7 +41,7 @@ struct BlockInfo {
 	}
 	String getString(String varname){
 		if(varname=="species") return species;
-		if(varname=="data") return date;
+		if(varname=="date") return date;
 		if(varname=="id") return id;
 		if(varname=="substrate") return id;
 		return "";

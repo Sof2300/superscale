@@ -378,8 +378,9 @@ private:
 
 	void parse(String filecontent){
 		//		String filecontent = "[\"one\",\"two\",{\"three\":3}]";
-		DynamicJsonDocument doc2(500);//filecontent.length());
-		deserializeJson(doc2, filecontent);
+		DynamicJsonDocument doc2(2500);//filecontent.length());
+		DeserializationError err = deserializeJson (doc2, filecontent);
+		if (err) { Serial. println ( String ()+ "PriceManager::parse error: " +err. c_str ()); return ;}
 		JsonArray arr2 = doc2.as<JsonArray>();
 		//		Serial.println(String()+"PriceManager::parse0 :'"+filecontent+"'");
 

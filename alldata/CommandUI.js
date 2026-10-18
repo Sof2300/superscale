@@ -1674,27 +1674,27 @@ class CommandUI {
         this.generateidbutton.setStyle("margin-left", "15px");
         this.generateidbutton.setStyle("margin-bottom", "10px")
 
-        this.blockgeneratecheckbox = new CheckBox(this.comp, "blockgeneratecheckbox");
-        var blockgeneratetext = new SimpleText(this.comp, "blockgeneratecheckboxtext", "disable id generation");
-        blockgeneratetext.setStyle("font-size", "65%");    //    blockgeneratetext.setStyle("float","right");   //     this.blockgeneratecheckbox.setStyle("float","right");
-        this.blockgeneratecheckbox.setStyle("margin-left", "25px");
-        this.blockgeneratecheckbox.setStyle("margin-top", "7px");
-        this.blockgeneratecheckbox.setStyle("margin-bottom", "10px");
-        this.blockgeneratecheckbox.setStyle("font-size", "65%");
-        if (data["configstate"]) if (data["configstate"]["block-generate"]) this.blockgeneratecheckbox.setText(1);
-        this.blockgeneratecheckbox.pchecked = this.blockgeneratecheckbox.element.checked;
-        this.blockgeneratecheckbox.addListener("onchange", this.blockgenerate.bind(this));
+        this.disablegeneratecheckbox = new CheckBox(this.comp, "disablegeneratecheckbox");
+        var disablegeneratetext = new SimpleText(this.comp, "disablegeneratecheckboxtext", "disable id generation");
+        disablegeneratetext.setStyle("font-size", "65%");    //    disablegeneratetext.setStyle("float","right");   //     this.disablegeneratecheckbox.setStyle("float","right");
+        this.disablegeneratecheckbox.setStyle("margin-left", "25px");
+        this.disablegeneratecheckbox.setStyle("margin-top", "7px");
+        this.disablegeneratecheckbox.setStyle("margin-bottom", "10px");
+        this.disablegeneratecheckbox.setStyle("font-size", "65%");
+        if (data["configstate"]) if (data["configstate"]["disable-generate"]) this.disablegeneratecheckbox.setText(1);
+        this.disablegeneratecheckbox.pchecked = this.disablegeneratecheckbox.element.checked;
+        this.disablegeneratecheckbox.addListener("onchange", this.disablegenerate.bind(this));
 
-        this.blockrfididsavecheckbox = new CheckBox(this.comp, "blockrfididsavecheckbox");
-        var blockrfididsavetext = new SimpleText(this.comp, "blockrfididsavecheckboxtext", "disable save on rfid/id association");
-        blockrfididsavetext.setStyle("font-size", "65%");
-        this.blockrfididsavecheckbox.setStyle("margin-left", "25px");
-        this.blockrfididsavecheckbox.setStyle("margin-top", "7px");
-        this.blockrfididsavecheckbox.setStyle("margin-bottom", "10px");
-        this.blockrfididsavecheckbox.setStyle("font-size", "65%");
-        if (data["configstate"]) if (data["configstate"]["block-rfid-id-save"]) this.blockrfididsavecheckbox.setText(1);
-        this.blockrfididsavecheckbox.pchecked = this.blockrfididsavecheckbox.element.checked;
-        this.blockrfididsavecheckbox.addListener("onchange", this.blockrfididsave.bind(this));
+        this.disablerfididsavecheckbox = new CheckBox(this.comp, "disablerfididsavecheckbox");
+        var disablerfididsavetext = new SimpleText(this.comp, "disablerfididsavecheckboxtext", "disable save on rfid/id association");
+        disablerfididsavetext.setStyle("font-size", "65%");
+        this.disablerfididsavecheckbox.setStyle("margin-left", "25px");
+        this.disablerfididsavecheckbox.setStyle("margin-top", "7px");
+        this.disablerfididsavecheckbox.setStyle("margin-bottom", "10px");
+        this.disablerfididsavecheckbox.setStyle("font-size", "65%");
+        if (data["configstate"]) if (data["configstate"]["disable-rfid-id-save"]) this.disablerfididsavecheckbox.setText(1);
+        this.disablerfididsavecheckbox.pchecked = this.disablerfididsavecheckbox.element.checked;
+        this.disablerfididsavecheckbox.addListener("onchange", this.disablerfididsave.bind(this));
 
 
         var order = this.getDataOrder(data);
@@ -1752,7 +1752,7 @@ class CommandUI {
                 }
             }
         }
-        this.createTagButtons(sortedTags);
+        this.createTagButtons(sortedTags, data["configstate"]);
 
         this.commandmultiui = new CommandMultiUI(data["multi"], "Multi");
         this.commandmultiui.addRows(this.multilineui);
@@ -1763,7 +1763,7 @@ class CommandUI {
         }
     }
 
-    createTagButtons(sortedTags) {
+    createTagButtons(sortedTags, configstate) {
         if (!sortedTags && typeof appConfig !== 'undefined' && appConfig) {
             sortedTags = appConfig.tags;
         }
@@ -1777,7 +1777,7 @@ class CommandUI {
                 cell = newrow.addCell();
                 this.tagbuttonscell = cell; // Store reference for refresh
                 cell.setAttribute("colspan", buttonnumber);
-                var tagsTitle = new SimpleText(cell, "tags_title", "revert on tag");
+                var tagsTitle = new SimpleText(cell, "tags_title", "transient tag");
                 tagsTitle.setStyle("font-size", "70%");
                 tagsTitle.setStyle("color", "gray");
                 tagsTitle.setStyle("margin-right", "5px");
@@ -1788,7 +1788,9 @@ class CommandUI {
                 //        this.tagscheckbox.setStyle("margin-top","5px");
                 this.tagscheckbox.setStyle("margin-bottom", "2px");
                 this.tagscheckbox.setStyle("font-size", "65%");
-                this.tagscheckbox.element.checked = 1;
+                if (configstate && configstate["transient-tag"] == 1) this.tagscheckbox.setText(1);
+                this.tagscheckbox.pchecked = this.tagscheckbox.element.checked;
+                this.tagscheckbox.addListener("onchange", this.transientTagChanged.bind(this));
 
                 for (let j = 0; j < buttonnumber; j++) {
                     let tag = sortedTags[j];
@@ -1973,13 +1975,17 @@ class CommandUI {
         this.saveonsetcheckbox.updateText(upc);
         this.saveonsetcheckbox.pchecked = upc;
         upc = 0;
-        if (data["configstate"]["block-generate"] == 1) upc = 1;
-        this.blockgeneratecheckbox.updateText(upc);
-        this.blockgeneratecheckbox.pchecked = upc;
+        if (data["configstate"]["transient-tag"] == 1) upc = 1;
+        this.tagscheckbox.updateText(upc);
+        this.tagscheckbox.pchecked = upc;
         upc = 0;
-        if (data["configstate"]["block-rfid-id-save"] == 1) upc = 1;
-        this.blockrfididsavecheckbox.updateText(upc);
-        this.blockrfididsavecheckbox.pchecked = upc;
+        if (data["configstate"]["disable-generate"] == 1) upc = 1;
+        this.disablegeneratecheckbox.updateText(upc);
+        this.disablegeneratecheckbox.pchecked = upc;
+        upc = 0;
+        if (data["configstate"]["disable-rfid-id-save"] == 1) upc = 1;
+        this.disablerfididsavecheckbox.updateText(upc);
+        this.disablerfididsavecheckbox.pchecked = upc;
         upc = 0;
         if (data["configstate"]["multi"] == 1) upc = 1;
         this.multicheckbox.updateText(upc);
@@ -1996,7 +2002,7 @@ class CommandUI {
     }
 
     generateid() {
-        if (this.blockgeneratecheckbox && this.blockgeneratecheckbox.element.checked) return;
+        if (this.disablegeneratecheckbox && this.disablegeneratecheckbox.element.checked) return;
         var args = this.commandlineui.getArgURL();
         let comp = this.commandlineui.row.valuecomps["id"];
         console.log("CommandUI::generateID :" + "/generateID" + args);
@@ -2033,24 +2039,24 @@ class CommandUI {
         disenableload("/set?save-on-set=" + v, [this.saveonsetcheckbox.id]);
     }
 
-    blockgenerate() {
-        if (this.blockgeneratecheckbox.pchecked == this.blockgeneratecheckbox.element.checked) return;
-        if (this.blockgeneratecheckbox.pchecked2 === this.blockgeneratecheckbox.element.checked) return;
-        this.blockgeneratecheckbox.pchecked2 = this.blockgeneratecheckbox.element.checked;
-        console.log("CommandUI::blockgenerate");
+    disablegenerate() {
+        if (this.disablegeneratecheckbox.pchecked == this.disablegeneratecheckbox.element.checked) return;
+        if (this.disablegeneratecheckbox.pchecked2 === this.disablegeneratecheckbox.element.checked) return;
+        this.disablegeneratecheckbox.pchecked2 = this.disablegeneratecheckbox.element.checked;
+        console.log("CommandUI::disablegenerate");
         var v = 0;
-        if (this.blockgeneratecheckbox.element.checked) v = 1;
-        disenableload("/set?block-generate=" + v, [this.blockgeneratecheckbox.id]);
+        if (this.disablegeneratecheckbox.element.checked) v = 1;
+        disenableload("/set?disable-generate=" + v, [this.disablegeneratecheckbox.id]);
     }
 
-    blockrfididsave() {
-        if (this.blockrfididsavecheckbox.pchecked == this.blockrfididsavecheckbox.element.checked) return;
-        if (this.blockrfididsavecheckbox.pchecked2 === this.blockrfididsavecheckbox.element.checked) return;
-        this.blockrfididsavecheckbox.pchecked2 = this.blockrfididsavecheckbox.element.checked;
-        console.log("CommandUI::blockrfididsave");
+    disablerfididsave() {
+        if (this.disablerfididsavecheckbox.pchecked == this.disablerfididsavecheckbox.element.checked) return;
+        if (this.disablerfididsavecheckbox.pchecked2 === this.disablerfididsavecheckbox.element.checked) return;
+        this.disablerfididsavecheckbox.pchecked2 = this.disablerfididsavecheckbox.element.checked;
+        console.log("CommandUI::disablerfididsave");
         var v = 0;
-        if (this.blockrfididsavecheckbox.element.checked) v = 1;
-        disenableload("/set?block-rfid-id-save=" + v, [this.blockrfididsavecheckbox.id]);
+        if (this.disablerfididsavecheckbox.element.checked) v = 1;
+        disenableload("/set?disable-rfid-id-save=" + v, [this.disablerfididsavecheckbox.id]);
     }
 
     multiChanged() {
@@ -2061,6 +2067,16 @@ class CommandUI {
         var v = 0;
         if (this.multicheckbox.element.checked) v = 1;
         disenableload("/set?multi=" + v, [this.multicheckbox.id]);
+    }
+
+    transientTagChanged() {
+        if (this.tagscheckbox.pchecked == this.tagscheckbox.element.checked) return;
+        if (this.tagscheckbox.pchecked2 === this.tagscheckbox.element.checked) return;
+        this.tagscheckbox.pchecked2 = this.tagscheckbox.element.checked;
+        console.log("CommandUI::transientTagChanged");
+        var v = 0;
+        if (this.tagscheckbox.element.checked) v = 1;
+        disenableload("/set?transient-tag=" + v, [this.tagscheckbox.id]);
     }
 
 

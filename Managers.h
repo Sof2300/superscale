@@ -104,7 +104,7 @@ public:
 			if(APpass!=sconfig->get("appassword")) sconfig->update("appassword",APpass);
 			if(getMode()!=sconfig->get("mode")) sconfig->update("mode","AP");
 		}
-		sconfig->update("ip",WifiMan::getIP());
+		sconfig->update("IP", WifiMan::getIP());
 		startMDNS();
 		return connected;
 	}

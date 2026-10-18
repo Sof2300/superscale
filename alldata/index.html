@@ -1,4 +1,4 @@
-﻿<html>
+<html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" charset="UTF-8"/>
 <style>
     * {
@@ -7,6 +7,29 @@
 
     fieldset {
         border: none;
+    }
+
+    .ip-address-link {
+        display: block;
+       
+       
+        color: #176575;
+        
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .ip-mdns-link {
+        display: block;
+       
+      
+        color: #176575;
+       
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .ip-address-link:hover, .ip-mdns-link:hover {
+        text-decoration: underline;
     }
 
     input, select, textarea, button {
@@ -187,7 +210,7 @@
         '"totalharvest":1355,"totalsubstrate":1629},"multi":{"1/command":"harvest","2/command":"species","2/argument":"HU","3/command":"blockdate","3/argument":"12/11/21"},' +
         '"pile":{"p0/0/command":"substrate/strawpellet","p1/0/command":"substrate/bran"},' +
         '"config":{"boottime":"27/10/21 20:24:17","ip":"192.168.2.15","mdns":"superscale","password":"","ssid":"Bamboo","mode":"ST"},' +
-        '"configstate":{"data-version":2,"fifo":1,"pile":0,"save-on-set":1,"block-generate":1,"block-rfid-id-save":0,"multi":1,' +
+        '"configstate":{"data-version":2,"fifo":1,"pile":0,"save-on-set":1,"disable-generate":1,"disable-rfid-id-save":0,"multi":1,' +
         '"free-space":1024024}}';
     
     var pageUI;
@@ -195,6 +218,7 @@
     function showPage(tobj) {
         if (DEBUGOFFLINE) tobj = JSON.parse(jsonsampledata);
         console.log(tobj);
+        updateIpLink(tobj);
         var item = document.getElementById("content");
         item.textContent = "";
 
@@ -229,6 +253,34 @@
 
     function updatePage(tobj) {
         pageUI.update(tobj);
+        updateIpLink(tobj);
+    }
+
+    function updateIpLink(tobj) {
+        var ip = tobj && tobj.config && tobj.config.IP;
+        var mdns = tobj && tobj.config && tobj.config.mdns;
+        var ipLink = geid("ipAddressLink");
+        var mdnsLink = geid("mdnsAddressLink");
+        if (ipLink) {
+            if (ip) {
+                var ipUrl = "http://" + ip + "/";
+                ipLink.href = ipUrl;
+                ipLink.textContent = ipUrl;
+                ipLink.style.display = "block";
+            } else {
+                ipLink.style.display = "none";
+            }
+        }
+        if (mdnsLink) {
+            if (mdns) {
+                var mdnsUrl = "http://" + mdns + ".local/";
+                mdnsLink.href = mdnsUrl;
+                mdnsLink.textContent = mdnsUrl;
+                mdnsLink.style.display = "block";
+            } else {
+                mdnsLink.style.display = "none";
+            }
+        }
     }
 
     function dataloaded() {
@@ -612,14 +664,19 @@
         </div>
             </td><td>
         <div style="float:right;font-size: 70%">
-            <button id="clearMessagesButton" title="Clear messages" type="button" style="display:none;font-size: 120%;margin-left: 0px">⊘ </button><br>
+            <table style="border:0px"><tr> <td> 
+            <button id="clearMessagesButton" title="Clear messages" type="button" style="display:none;font-size: 120%;margin-left: 0px">⊘ </button><br>   
+            </td></tr><tr><td>
+            <a id="ipAddressLink" class="ip-address-link" href="#" style="display:none;font-size: 70%" title="Open the device directly by IP address" rel="noopener">http://</a>
+            <a id="mdnsAddressLink" class="ip-mdns-link" href="#" style="display:none;font-size: 70%" title="Open the device by its mDNS name" rel="noopener">http://</a>
+            </trtd></tr></table>
             <a target="_blank" href="readme.txt">Help</a><br>
 
             <a target="_blank" href="viz/BlockViz.html">Block Viz </a><br>
             <a target="_blank" href="data.txt">Data file</a><a target="_blank" href="data.txt"
                                                                download>(download)</a><br>
             <a target="_blank" href="stats/edit.html?fileurl=../config.json">Edit config</a> -
-            <a target="_blank" href="stats/stats.html">Stats page</a><br>
+            <a target="_blank" href="stats/stats.html">Ol' Stats page</a><br>
             <a target="_blank" href="stats/price.html">Price calculate page</a>
         </div>
         </td></tr></table>

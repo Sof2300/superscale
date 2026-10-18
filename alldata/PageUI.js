@@ -157,7 +157,7 @@ class ScaleUI{
 class BlockInfoUI {
 
     constructor(data,parentcomp){
-        this.names={"blockdate":"inoc.date", "blockbe":"block BE","totalharvest":"total harvest","avgspecies":"avg.","flushnumber":"flushes","totalsubstrate":"total substrate"};
+        this.names={"blockdate":"inoc.date", "blockbe":"block BE","totalharvest":"total harvest","avgspecies":"stats","flushnumber":"flushes","totalsubstrate":"total substrate"};
         this.create(data,parentcomp);
     }
     create(data,parentcomp) {
@@ -336,11 +336,11 @@ class BlockInfoUI {
 
     formatAverage(label,blocks,includeBE) {
         const average=this.getAverageInfo(blocks);
-        if(average.count===0) return includeBE ? label+" x0: no data" : label+": x0, no data";
+        if(average.count===0) return "["+label+" x0]: no data";
         if(includeBE) {
-            return label+" x"+average.count+": "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€) - "+average.be.toFixed(0)+"% BE";
+            return "["+label+" x"+average.count+"]: "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€) - "+average.be.toFixed(0)+"% BE";
         }
-        let result=label+": x"+average.count+", "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€)";
+        let result="["+label+" x"+average.count+"]: "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€)";
         return result;
     }
 
@@ -384,7 +384,7 @@ class BlockInfoUI {
                     lines.push(this.formatAverage(species+" ~"+formula,similarRecipe,true));
                 }
             }
-            return lines.join("\n");
+            return lines.reverse().join("\n");
         }
         if(name=="totalharvest") {
             if(!this.filedata) val+=" g";
@@ -420,12 +420,13 @@ class BlockInfoUI {
         var valstyle={"font-weight":"bold"};
         if(name=="id") valstyle["font-size"]="150%";
         if(name=="species") valstyle["font-size"]="150%";
-        if(name=="blockdate") valstyle["font-size"]="110%";
-        if(name=="formula") valstyle["font-size"]="90%";
-        if(name=="totalharvest") valstyle["font-size"]="120%";
-        if(name=="avgspecies") {valstyle["font-size"]="85%";valstyle["font-weight"]="normal";valstyle["white-space"]="pre-line";}
-        if(name=="blockbe") valstyle["font-size"]="90%";
-        if(name=="totalsubstrate") valstyle["font-size"]="80%";
+        if(name=="blockdate") valstyle["font-size"]="120%";
+        if(name=="formula") valstyle["font-size"]="95%";
+        if(name=="totalharvest") {valstyle["font-size"]="120%";valstyle["color"]="blue";}
+        if(name=="avgspecies") {valstyle["font-size"]="80%";valstyle["font-weight"]="normal";valstyle["white-space"]="pre-line";}
+        if(name=="blockbe") valstyle["font-size"]="95%";
+        if(name=="flushnumber") valstyle["font-size"]="95%";
+        if(name=="totalsubstrate") valstyle["font-size"]="95%";
         if(name=="history") {valstyle["font-size"]="80%";delete valstyle["font-weight"];}
         return valstyle;
     }

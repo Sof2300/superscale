@@ -325,13 +325,13 @@ public:
 
 public:
 	void printMap(){
-		Serial.println("Multi loaded:>>");
+	//	Serial.println("Multi loaded:>>");
 		for (auto it : *(multimap.getMap())) {
 			String key=it.first;
 			String val=it.second;
 			Serial.println(String()+"- "+key+": "+val);
 		}
-		Serial.println("<<");
+		//Serial.println("<<");
 	}
 
 	void loadFromFile(){

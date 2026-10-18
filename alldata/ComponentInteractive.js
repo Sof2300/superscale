@@ -170,11 +170,13 @@ class CheckBox extends InteractiveItem{
 		else this.setStyle("filter",null);
 		this.busy=0;
 	}
-
 	check(v){
 		this.text=v;
 		this.element.checked=v;
+		this.setText(v);
 	}
+
+
 
 	getArguments(){var k=0,o={};if(this.element.checked) k=1;o[this.id]=k;return o;}
 	getChildrenIds(){return [this.id];}
@@ -741,7 +743,6 @@ class TableInteracter2 extends Interacter {
 	select(){this.setState("selected");}
 	highlight(on){this.setState("highlighted");}
 }
-
 
 
 

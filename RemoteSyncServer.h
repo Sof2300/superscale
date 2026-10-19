@@ -76,6 +76,8 @@ public:
 	}
 
 	bool processRequest(String ename, StringMapEvent *se, bool *captured) {
+		// Sync API responses are plain-text tokens: declare the content type explicitly.
+		if (ename.startsWith("/sync_")) se->insertValue("type", "text/plain");
 		if (ename == String("/sync_check")) {
 			handleSyncCheck(se);
 			if (captured) *captured = true;
@@ -289,22 +291,24 @@ public:
 		ensureFileExists();
 		size_t currentSize = getLocalSize();
 
-		// Verify total size matches
+		// Verify total size matches (the Content-Range total is a precondition the client asserts)
 		if (total != currentSize) {
-			Serial.printf("[SYNC-SRV] PATCH CONFLICT: total size mismatch (client=%u, server=%u)\n",
+			Serial.printf("[SYNC-SRV] PATCH 412 SIZE MISMATCH: client=%u, server=%u\n",
 					(unsigned)total, (unsigned)currentSize);
 			xSemaphoreGive(fileMutex);
-			se->insertValue("response", "CONFLICT");
+			se->insertValue("response", String()+"SIZE MISMATCH server="+String((unsigned)currentSize)+" client="+String((unsigned)total));
+			se->insertValue("statuscode", "412");
 			return;
 		}
 
-		// Verify CRC
+		// Verify CRC (If-Match is the entity validator; a mismatch is a failed precondition)
 		String serverCRC = getLocalCRC(currentSize);
 		if (serverCRC != ifMatch) {
-			Serial.printf("[SYNC-SRV] PATCH CONFLICT: CRC mismatch (client=%s, server=%s)\n",
+			Serial.printf("[SYNC-SRV] PATCH 412 CRC MISMATCH: client=%s, server=%s\n",
 					ifMatch.c_str(), serverCRC.c_str());
 			xSemaphoreGive(fileMutex);
-			se->insertValue("response", "CONFLICT");
+			se->insertValue("response", String()+"CRC MISMATCH server="+serverCRC+" client="+ifMatch);
+			se->insertValue("statuscode", "412");
 			return;
 		}
 

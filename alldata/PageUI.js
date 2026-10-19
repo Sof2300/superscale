@@ -157,7 +157,7 @@ class ScaleUI{
 class BlockInfoUI {
 
     constructor(data,parentcomp){
-        this.names={"blockdate":"inoc.date", "blockbe":"block BE","totalharvest":"total harvest","avgspecies":"stats","flushnumber":"flushes","totalsubstrate":"total substrate"};
+        this.names={"blockdate":"inoc.date", "totalharvest":"total harvest","avgspecies":"stats","flushnumber":"flushes","totalsubstrate":"total substrate"};
         this.create(data,parentcomp);
     }
     create(data,parentcomp) {
@@ -170,7 +170,7 @@ class BlockInfoUI {
         var tablecontent={};
         tablecontent.rows=[];
         tablecontent.styles=[];
-        this.order = ["id", "species", "blockdate", "formula", "totalharvest","avgspecies", "flushnumber", "totalsubstrate","blockbe", "history"];
+        this.order = ["id", "species", "blockdate", "formula", "totalharvest","avgspecies", "flushnumber", "totalsubstrate", "history"];
         this.subcomps=[];
         for (var o in this.order) {
             var key=this.order[o];
@@ -387,12 +387,13 @@ class BlockInfoUI {
             return lines.reverse().join("\n");
         }
         if(name=="totalharvest") {
-            if(!this.filedata) val+=" g";
+            const beval=this.data && this.data["blockinfo"] ? this.data["blockinfo"]["blockbe"] : "";
+            const beStr=String(beval).length>0 && Number.isFinite(Number(beval)) ? " - "+Number(beval)+"% BE" : "";
+            if(!this.filedata) val+=" g"+beStr;
             else {
-                val+="g ("+this.getPriceForWeight(this.currentspecies,val).toFixed(2)+"€)";
+                val+="g ("+this.getPriceForWeight(this.currentspecies,val).toFixed(2)+"€)"+beStr;
             }
         }
-        if(name=="blockbe") val+=" %";
         if(name=="totalsubstrate") val+=" g";
         if(name=="history") val=this.improveHistory(val)
         return val;
@@ -424,7 +425,6 @@ class BlockInfoUI {
         if(name=="formula") valstyle["font-size"]="95%";
         if(name=="totalharvest") {valstyle["font-size"]="120%";valstyle["color"]="blue";}
         if(name=="avgspecies") {valstyle["font-size"]="80%";valstyle["font-weight"]="normal";valstyle["white-space"]="pre-line";}
-        if(name=="blockbe") valstyle["font-size"]="95%";
         if(name=="flushnumber") valstyle["font-size"]="95%";
         if(name=="totalsubstrate") valstyle["font-size"]="95%";
         if(name=="history") {valstyle["font-size"]="80%";delete valstyle["font-weight"];}
@@ -443,7 +443,6 @@ class BlockInfoUI {
         if(name=="history") subcomp.lncomp2=new SimpleBR(this.comp);
         subcomp.valuecomp=new SimpleText(this.comp, "blockinfoui_value_"+name);
         if(value !==undefined) {
-            if(name=="blockbe" && value[value.length-1]!="%") value+="%"
             subcomp.valuecomp.setText(value);
         }
         if(name=="id") subcomp.valuecomp.setStyle("font-size","120%");

@@ -386,16 +386,19 @@ function isDateField(text) {
         return false;
 }
 
+// Single parser for the D/M/YY dates used by the viz pages.
+// Returns an Invalid Date (NaN) when the value is not such a date, so callers
+// can use Number.isFinite(makeDate(v).getTime()) to test a date cell.
 function makeDate(d) {
-        let nd = new Date(0);
-        if (d === undefined) {
-                console.log();
-        }
-        let datetab = d.split("/");
-        nd.setDate(datetab[0]);
-        nd.setMonth(datetab[1] - 1);
-        nd.setYear("20" + datetab[2]);
-        return nd;
+        if (d === undefined || d === null) return new Date(NaN);
+        let text = "" + d;
+        if (text.indexOf("/") < 0) return new Date(NaN);
+        let tab = text.trim().split("/");
+        if (tab.length !== 3) return new Date(NaN);
+        let day = Number(tab[0]), month = Number(tab[1]), year = Number(tab[2]);
+        if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return new Date(NaN);
+        if (year < 100) year += 2000;
+        return new Date(year, month - 1, day);
 }
 
 function daysDiff(d1, d2) {
@@ -444,41 +447,6 @@ function aggregate(name, odata) {
    //     console.log("aggregate(" + name + "): " + (Date.now()-ts0) + " ms");
         return ndata;
 }
-function processAndBuildAllTables(rawData, savedRequests) {
-        let tdata2 = removeCancels(rawData);
-        let tdata3 = removeConsecutiveDuplicates(tdata2);
-        var headers = fetchHeaders(2, tdata3);
-        var orderedheaders = preorder.slice();
-        orderedheaders = [...new Set([...orderedheaders, ...headers])];
-
-        parsedTableData = buildTable(tdata3, orderedheaders, sums);
-
-        let dtHeaders = parsedTableData[0].map((h, colIndex) => ({
-                title: h, defaultContent: "",
-                className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
-                render: function (data, type, row) {
-                        if (data == null) return "";
-                        if (h === "BE") {
-                                let num = parseFloat(String(data).replace("%", ""));
-                                if (type === "sort" || type === "type") return num;
-                                return data;
-                        }
-                        if (h === "blockdate" || h.endsWith("date")) {
-                                let p = String(data).split("/");
-                                if (p.length === 3) {
-                                        let ts = new Date(2000 + Number(p[2]), Number(p[1]) - 1, Number(p[0])).getTime();
-                                        if (type === "sort" || type === "type") return ts;
-                                }
-                                return data;
-                        }
-                        if (h === "Age" || h === "spawn" || h === "totalsubstrate" || h === "totalharvest" || h === "harvestcount" || /^harvest\d+$/.test(h)) {
-                                let n = Number(data);
-                                if (!isNaN(n) && (type === "sort" || type === "type")) return n;
-                        }
-                        return data;
-                }
-        }));
-}
 function fetchHeaders(col, data) {
         var arr = data.split("\n"), headers = {};
         for (var r of arr) {
@@ -488,13 +456,6 @@ function fetchHeaders(col, data) {
         }
         return Object.keys(headers);
 }
-function parseBlockDate(text){
-        if(!text) return NaN;
-        let p=text.split("/");
-        if(p.length!==3) return NaN;
-        return new Date(2000+Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
-}
-
 function updateAverageRow(api, tableId, headers) {
         if (!api || !tableId || !headers) {
                 console.error("updateAverageRow missing required arguments.");
@@ -622,9 +583,8 @@ function applyRowFilter(rowData, headers, req) {
                 if (colIndex >= 0) {
                         let val = rowData[colIndex];
                         if (!val) return false;
-                        let p = String(val).split("/");
-                        if (p.length !== 3) return false;
-                        let rowDate = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
+                        let rowDate = makeDate(val).getTime();
+                        if (!Number.isFinite(rowDate)) return false;
                         if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
                         if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
                 }

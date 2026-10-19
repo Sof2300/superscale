@@ -210,12 +210,11 @@
                         if (type === "sort" || type === "type") return num;
                         return data;
                     }
-                    if (h === "blockdate" || h.endsWith("date")) {
-                        let p = String(data).split("/");
-                        if (p.length === 3) {
-                            let ts = new Date(2000 + Number(p[2]), Number(p[1])-1, Number(p[0])).getTime();
-                            if (type === "sort" || type === "type") return ts;
-                        }
+                    // Date cells (blockdate, *date columns and the tag columns, which store the tag date)
+                    // are sorted chronologically using the shared D/M/YY parser.
+                    let dateTs = makeDate(data).getTime();
+                    if (Number.isFinite(dateTs)) {
+                        if (type === "sort" || type === "type") return dateTs;
                         return data;
                     }
                     if (h === "Age" || h === "spawn" || h === "totalsubstrate" || h === "totalharvest" || h === "harvestcount" || /^harvest\d+$/.test(h)) {

@@ -267,6 +267,7 @@ private:
 	void reply(bool b, StringMapEvent *se ){
 		if(b) se->insertValue("response","OK");	// what is this ok used to ? dont remember
 		else se->insertValue("response","NOTOK");
+		se->insertValue("type","text/plain");
 	}
 
 	void beepnotify(){if(beeper){beeper->simpleBeep(TFTUPDATEFREQ,TFTUPDATELENGTH);}	}
@@ -342,6 +343,7 @@ private:
 		if(ename==String("/price/json")) {
 			//beepnotify();
 			se->insertValue("response",makeJson().c_str());
+			se->insertValue("type","application/json");
 			reply(true,se);
 			return true;
 		}

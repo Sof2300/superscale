@@ -8,7 +8,7 @@ C5A522DE,meta:erase
 04EA8A5ED52A81,meta:rfid-undo
 62F8C256,command:fruit
 04C8B55FD52A81,command:contaminated
-62F8C256,command:@fruit
-04C8B55FD52A81,command:@contaminated
-62F8C256,command:#fruit
+04E8565DD52A81,command:@fruit
+04F36B5FD52A81,command:@contaminated
+04F2EF50D62A81,command:#fruit
 04C8B55FD52A81,command:#contaminated

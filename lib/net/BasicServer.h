@@ -202,8 +202,14 @@ public:
 		if (nmap.exists("Download")) {sendFile(nmap);return true;}
 
 		if(b && nmap.exists("response")) {
-			if(nmap.exists("type")) server.send(200, nmap.values["type"], nmap.values["response"]);
-			else server.send(200, "application/json", nmap.values["response"]);
+			// Contract: whoever sets "response" must also set "type" (no implicit default here).
+			// "statuscode" is optional and defaults to 200 (e.g. sync_patch answers 412).
+			int status=200;
+			if(nmap.exists("statuscode")) {
+				int sc=String(nmap.values["statuscode"].c_str()).toInt();
+				if(sc>=100 && sc<=599) status=sc;
+			}
+			server.send(status, nmap.values["type"], nmap.values["response"]);
 			return true;
 		}
 		//	Serial.println(String()+"sending file :"+path);

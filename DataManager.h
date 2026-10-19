@@ -479,6 +479,7 @@ public:
 		if(ename==String("/json")) {
 			beepjsonnotify();
 			se->insertValue("response",makeJson().c_str());
+			se->insertValue("type","application/json");
 			return true;
 		}
 		if(ename==String("/undo")) {registerInteraction();
@@ -603,6 +604,7 @@ public:
 		}
 		if(ename==String("/filewrite")) {
 			beepnotify();
+			se->insertValue("type","text/plain");
 			if(se->exists("path") && se->exists("content")) {
 				String p=se->get("path"),content=se->get("content");
 				if(writePermitted(p)) {
@@ -1181,7 +1183,10 @@ public:
 			se->updateValue("response",val.c_str());	// what is this ok used to ? dont remember
 			se->updateValue("type","text/html");
 		}
-		else se->updateValue("response","NOTOK");
+		else {
+			se->updateValue("response","NOTOK");
+			se->updateValue("type","text/plain");
+		}
 	}
 
 

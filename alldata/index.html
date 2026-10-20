@@ -32,6 +32,28 @@
         text-decoration: underline;
     }
 
+    /* Block Viz link: same teal as the ip/.local links, but funky (pill border + system
+       handwriting font so it still renders offline). */
+    .blockviz-link {
+        display: inline-block;
+        font-family: 'Comic Sans MS', 'Comic Neue', 'Segoe Print', 'Bradley Hand', cursive;
+        font-weight: bold;
+        color: #176575;
+        background: #eafafc;
+        border: 2px dashed #176575;
+        border-radius: 18px;
+        padding: 0px 15px 0px 15px;
+        text-decoration: none;
+        white-space: nowrap;
+        margin-top: 3px;
+        letter-spacing: 1px;
+
+    }
+    .blockviz-link:hover {
+        color: #fff;
+        background: #176575;
+     }
+
     input, select, textarea, button {
         font-size: inherit;
     }
@@ -677,8 +699,7 @@
             <a target="_blank" href="stats/edit.html?fileurl=../config.json">Edit config</a> -
             <a target="_blank" href="stats/stats.html">Ol' Stats page</a><br>
             <a target="_blank" href="stats/price.html">Price calculate page</a><br>
-            <a target="_blank" href="viz/BlockViz.html"
-               style="font-weight:bold;color:#b30000;background-color:#fff3cd">Block Viz</a>
+            <a target="_blank" href="viz/BlockViz.html" class="blockviz-link">Block Viz</a>
         </div>
         </td></tr></table>
     </div>

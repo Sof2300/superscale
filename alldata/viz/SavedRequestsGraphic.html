@@ -26,7 +26,9 @@
 
         .request-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 12px; margin-bottom: 12px; }
         .request-title { display: flex; align-items: center; gap: 15px; margin: 0; font-size: 1.3em; color: #1a1a1a; }
-        .query-badge { font-size: 0.55em; font-weight: normal; color: #555; background: #e9ecef; padding: 4px 10px; border-radius: 20px; border: 1px solid #ced4da; }
+        /* Name and its detailed request description, left aligned on one line. */
+        .request-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .req-info { font-size: 0.85em; color: #555; margin: 0; background: #f9f9f9; padding: 4px 10px; border-radius: 4px; }
 
         /* Summary Bar */
         .summary-stats { display: flex; gap: 15px; font-size: 0.85em; font-weight: bold; color: #444; }
@@ -190,14 +192,13 @@
                 let avgBEStr = countBE > 0 ? (sumBE / countBE).toFixed(1) + "%" : "N/A";
                 let avgHarvStr = countHarvest > 0 ? (sumHarvest / countHarvest).toFixed(1) + "g" : "N/A";
 
-                let searchBadge = req.search ? `<span class="query-badge">Query: <strong>${req.search}</strong></span>` : '';
-
                 let html = `
                     <div class="request-card">
                         <div class="request-header">
-                            <h2 class="request-title">
-                                ${req.name} ${searchBadge}
-                            </h2>
+                            <div class="request-title-group">
+                                <h2 class="request-title">${req.name}</h2>
+                                <div class="req-info">${describeRequest(req)}</div>
+                            </div>
                             <div class="summary-stats">
                                 <div class="stat-item">Total Blocks: ${matchingRows.length}</div>
                                 <div class="stat-item">Avg Yield: ${avgHarvStr}</div>

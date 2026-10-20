@@ -16,6 +16,9 @@ var keeplast = ["harvest"];
 var sums = ["harvest"];
 var aggregated = { "harvest": 7 };
 var calculatedfields = { "Age": { "substract": ["now", "blockdate"] }, "BE": { "divide": ["totalharvest", "totalsubstrate"] } };
+// Commands treated as tags: their cell value is the date the tag was applied, so their
+// columns are sortable and filterable as dates just like blockdate/*date columns.
+var tagCommands = ["contaminated", "compost", "flies", "fungus flies", "spent", "storage", "fruit", "sale synallois", "stored"];
 function removeConsecutiveDuplicates(td) {
         let lines = td.split('\n');
         let out = [];
@@ -205,11 +208,10 @@ function buildTable(tdata, headers, sums) {
                                 finaltable[indexofid[l[1]]][argindex].push([l[0], l[3]]);
                         }
                         else {
-                                let tags=["contaminated","compost","flies","fungus flies","spent", "storage", "fruit", "sale synallois","stored"]
                                 let endval=l[3];
                                 if(l[2]=="stored")
                                         console.log();
-                                if(tags.indexOf(l[2])>-1)
+                                if(tagCommands.indexOf(l[2])>-1)
                                         endval=l[0];
                                 finaltable[indexofid[l[1]]][argindex] = endval;
                                 //   console.log(finaltable[indexofid[l[1]]]);
@@ -591,3 +593,135 @@ function applyRowFilter(rowData, headers, req) {
         }
         return true;
 }
+
+// --- Hideable columns (shared by the table pages) ---
+// `hidden` is a plain array of header names owned by the caller: a single working list in
+// BlockViz.html, and one list per saved request (req.hiddenColumns) in the Table View.
+function isColumnHidden(hidden, header) { return hidden.indexOf(header) >= 0; }
+
+// --- Request description (shared by the Table View and the Graphic View) ---
+// Spells out a saved request the way it was typed in Block Explore, so a page can show it next to
+// the request name. Returns an HTML fragment (the search text is emphasised).
+function describeRequest(req) {
+        let parts = [];
+        parts.push(req.search ? `search: <strong>${req.search}</strong>` : "<em>no search text</em>");
+        if (req.search) parts.push(req.isAnd ? "require ALL conditions (AND)" : "require ANY condition (OR)");
+        if (req.dateFilter && req.dateFilter.enabled) {
+                parts.push(`date filter on ${req.dateFilter.column} from ${req.dateFilter.from || "…"} to ${req.dateFilter.to || "…"}`);
+        }
+        return parts.join(" &nbsp;|&nbsp; ");
+}
+
+// The per-harvest breakdown (harvest1/harvest1date, ...) plus the harvest summary columns,
+// i.e. everything harvest related except "totalharvest", so the table can be reduced to totals.
+function isHarvestDetailColumn(header) {
+        if (header === "totalharvest") return false;
+        if (header === "harvestcount" || header === "lastharvest" || header === "lastharvestdate") return true;
+        return /^harvest\d+(date)?$/i.test(header);
+}
+
+// Tag columns: the date valued tags (tagCommands) plus the other tags declared in alldata/config.json.
+var tagColumns = [...new Set([...tagCommands, "comment", "sale", "glifada", "dry-harvest", "wet-harvest", "overmature-harvest", "moldy-harvest", "larva-in-harvest", "data-trash"])];
+function isTagColumn(header) { return tagColumns.indexOf(header) >= 0; }
+
+// Headers that hold no value at all in the given rows.
+function findEmptyColumns(headers, rows) {
+        return headers.filter((h, i) => rows.every(r => r[i] === undefined || r[i] === null || String(r[i]).trim() === ""));
+}
+
+// One checkbox per column inside the .col-chooser-panel, plus small group buttons: the whole
+// table, the columns with no data, the harvest detail (keeping only totalharvest) and the tags.
+function buildColumnChooser($panel, headers, hidden, onToggle, emptyColumns) {
+        $panel.empty();
+        emptyColumns = emptyColumns || [];
+
+        // A button is pressed when every column of its group is hidden. The state is always deduced
+        // from the hidden list, so the buttons stay consistent with each other and with the
+        // checkboxes: hiding everything also presses harvest, tags and empty when they are relevant.
+        let groups = [
+                { cls: "col-showall", off: "Hide all", on: "Show all", match: () => true },
+                { cls: "col-toggle-empty", label: "empty", match: h => emptyColumns.indexOf(h) >= 0 },
+                { cls: "col-toggle-harvest", label: "harvest", match: isHarvestDetailColumn },
+                { cls: "col-toggle-tags", label: "tags", match: isTagColumn }
+        ];
+
+        let $actions = $("<div>").addClass("col-chooser-actions").appendTo($panel);
+        groups.forEach(g => {
+                g.members = headers.filter(g.match);
+                g.$btn = $("<button>").attr({ type: "button", class: g.cls }).appendTo($actions);
+                if (g.members.length === 0) g.$btn.hide(); // nothing of that kind on this page
+        });
+
+        let $list = $("<div>").addClass("col-chooser-list").appendTo($panel);
+        headers.forEach(h => {
+                $list.append(
+                        $("<label>").append(
+                                $("<input type='checkbox'>").prop("checked", !isColumnHidden(hidden, h))
+                        ).append($("<span>").text(h))
+                );
+        });
+
+        function isGroupPressed(g) {
+                return g.members.length > 0 && g.members.every(h => isColumnHidden(hidden, h));
+        }
+
+        function syncCheckboxes() {
+                $list.find("input[type=checkbox]").each(function (i) {
+                        this.checked = !isColumnHidden(hidden, headers[i]);
+                });
+        }
+
+        function refreshButtons() {
+                groups.forEach(g => {
+                        let pressed = isGroupPressed(g);
+                        g.$btn.toggleClass("pressed", pressed);
+                        g.$btn.text(g.label ? g.label : (pressed ? g.on : g.off));
+                });
+        }
+
+        function afterChange() {
+                syncCheckboxes();
+                refreshButtons();
+                if (onToggle) onToggle();
+        }
+
+        $panel.off("change").on("change", "input[type=checkbox]", function () {
+                let i = $list.find("input[type=checkbox]").index(this);
+                let h = headers[i];
+                let at = hidden.indexOf(h);
+                if (this.checked && at >= 0) hidden.splice(at, 1);
+                else if (!this.checked && at < 0) hidden.push(h);
+                afterChange();
+        });
+        $panel.off("click").on("click", "button", function () {
+                let g = groups.find(x => x.$btn[0] === this);
+                if (!g) return;
+                let pressed = isGroupPressed(g);
+                g.members.forEach(h => {
+                        let at = hidden.indexOf(h);
+                        if (pressed && at >= 0) hidden.splice(at, 1);
+                        else if (!pressed && at < 0) hidden.push(h);
+                });
+                afterChange();
+        });
+
+        syncCheckboxes();
+        refreshButtons();
+}
+
+// Applies a hidden set to the given tables (all initialised tables on the page by default).
+function applyColumnVisibility(headers, hidden, $tables) {
+        ($tables || $("table")).each(function () {
+                if (!$.fn.DataTable.isDataTable(this)) return;
+                let api = $(this).DataTable();
+                headers.forEach((h, i) => api.column(i).visible(!isColumnHidden(hidden, h), false));
+                api.columns.adjust().draw(false);
+        });
+}
+
+// Close an open chooser when clicking anywhere outside it.
+$(document).on("click", function (e) {
+        $("details.col-chooser[open]").each(function () {
+                if (!$(e.target).closest(this).length) $(this).removeAttr("open");
+        });
+});

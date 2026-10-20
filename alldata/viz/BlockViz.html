@@ -90,6 +90,43 @@
         .save-panel-links { display: flex; gap: 15px; justify-content: flex-end; margin-bottom: 10px; }
         .save-panel-links a { font-weight: bold; color: #0056b3; text-decoration: none; }
         .save-panel-links a:hover { text-decoration: underline; }
+
+        /* --- HIDEABLE COLUMNS --- */
+        .col-chooser { position: relative; display: inline-block; }
+        .col-chooser > summary {
+            cursor: pointer; list-style: none; user-select: none;
+            padding: 3px 8px; background: #e8e8e8;
+            border: 1px solid #bbb; border-radius: 4px;
+        }
+        .col-chooser > summary::-webkit-details-marker { display: none; }
+        .col-chooser > summary:hover { background: #dcdcdc; }
+        .col-chooser[open] > summary { background: #d5e5f5; border-color: #0056b3; }
+        .col-chooser-panel {
+            position: absolute; z-index: 50; top: 100%; left: 0; margin-top: 4px;
+            background: #fff; border: 1px solid #888; border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,.25); padding: 6px 10px;
+            max-height: 320px; overflow: auto; text-align: left;
+        }
+        .col-chooser-panel .col-chooser-list { column-width: 140px; }
+        .col-chooser-panel label { display: block; white-space: nowrap; padding: 1px 0; font-weight: normal; cursor: pointer; }
+        .col-chooser-panel .col-chooser-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+        .col-chooser-panel .col-chooser-actions button {
+            padding: 1px 6px; background: #e0e0e0; color: #555;
+            border: 1px solid #ccc; border-radius: 3px; cursor: pointer;
+            font-size: 0.8em; white-space: nowrap;
+        }
+        .col-chooser-panel .col-chooser-actions button:hover { background: #d0d0d0; }
+        .col-chooser-panel .col-chooser-actions .col-toggle-empty,
+        .col-chooser-panel .col-chooser-actions .col-toggle-harvest,
+        .col-chooser-panel .col-chooser-actions .col-toggle-tags {
+            padding: 0 4px; font-size: 0.7em;
+        }
+        /* Pressed = that group of columns is currently hidden. */
+        .col-chooser-panel .col-chooser-actions button.pressed,
+        .col-chooser-panel .col-chooser-actions button.pressed:hover {
+            background: #b6d2ee; border-color: #0056b3; color: #003b73;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,.35);
+        }
     </style>
 
     <script>
@@ -143,6 +180,8 @@
         }
 
         let dataTableInstance = null;
+        // Columns hidden in the request currently being edited (saved/restored with the request).
+        let activeHiddenColumns = [];
 
         // DataTables Global Search logic SCOPED by table ID (Matches Both Files)
         $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
@@ -177,8 +216,9 @@
 
             let dateSelect = $("#dateFilterColumn");
             dateSelect.empty();
+            // Date-like columns: blockdate, *date columns and the tag columns (they hold the tag date).
             headers.forEach(h=>{
-                if(h.includes("date") || h=="blockdate"){
+                if(h.includes("date") || h=="blockdate" || tagCommands.indexOf(h) >= 0){
                     dateSelect.append($("<option>").val(h).text(h));
                 }
             });
@@ -197,11 +237,14 @@
                     $('#dateFilterColumn').val(req.dateFilter.column);
                     $('#dateFrom').val(req.dateFilter.from);
                     $('#dateTo').val(req.dateFilter.to);
+                    // Restore the column choice saved with this request
+                    activeHiddenColumns = (req.hiddenColumns || []).slice();
                 }
             }
 
             let dtHeaders = headers.map((h, colIndex) => ({
                 title: h, defaultContent: "",
+                visible: !isColumnHidden(activeHiddenColumns, h),
                 className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
                 render: function (data, type, row) {
                     if (data == null) return "";
@@ -228,6 +271,10 @@
             let dtData = window.tableData.slice(1);
             let footerRow = $("#dataTable tfoot tr");
             headers.forEach(() => { footerRow.append("<th></th>"); });
+
+            buildColumnChooser($("#colChooserPanel"), headers, activeHiddenColumns, function () {
+                applyColumnVisibility(headers, activeHiddenColumns, $("#dataTable"));
+            }, findEmptyColumns(headers, dtData));
 
             dataTableInstance = $('#dataTable').DataTable({
                 data: dtData,
@@ -265,6 +312,7 @@
                     name: name,
                     search: $('#searchInput').val(),
                     isAnd: $('#searchLogicAnd').is(':checked'),
+                    hiddenColumns: activeHiddenColumns.slice(),
                     dateFilter: {
                         enabled: $('#enableDateFilter').is(':checked'),
                         column: $('#dateFilterColumn').val(),
@@ -344,6 +392,10 @@
         <label>Column: <select id="dateFilterColumn"></select></label>
         <label>From: <input type="date" id="dateFrom"></label>
         <label>To: <input type="date" id="dateTo"></label>
+        <details class="col-chooser">
+            <summary>Columns &#9662;</summary>
+            <div class="col-chooser-panel" id="colChooserPanel"></div>
+        </details>
     </div>
 
     <table id="dataTable" class="display" style="width:100%">

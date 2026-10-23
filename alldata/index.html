@@ -40,14 +40,15 @@
         font-weight: bold;
         color: #176575;
         background: #eafafc;
-        border: 2px dashed #176575;
+        border: 1px dashed #176575;
         border-radius: 18px;
         padding: 0px 15px 0px 15px;
         text-decoration: none;
         white-space: nowrap;
         margin-top: 3px;
         letter-spacing: 1px;
-
+        font-size: 100%;
+        text-decoration: underline
     }
     .blockviz-link:hover {
         color: #fff;
@@ -59,7 +60,8 @@
     }
 
     td {
-        padding: 3px
+        padding: 3px;
+        border:0px solid;
     }
 
     input, select {
@@ -89,6 +91,17 @@
 	#messageToggle p {
     margin: 5px 0;
     font-family: 'Segoe UI', Arial, sans-serif;
+}
+	/* Current message: single emphasised status line */
+	#messageToggle.message-current {
+    font-weight: 600;
+    color: #14505c;
+}
+	/* All messages: denser chronological list */
+	#messageToggle.message-all {
+
+    font-weight: normal;
+    color: #333;
 }
 
 
@@ -438,7 +451,13 @@
     var messageToggleFirstLoad = true;
     var messageQueue = [];
     var messagePlayTimeout = null;
-    var lastAllMessagesCount = 0;
+    // Newest history line we already processed. The device caps allmessages
+    // (ALLMESSAGES_LIMIT), so the line count stops growing once the cap is hit;
+    // tracking the newest line keeps detecting messages in that case.
+    var lastAllMessagesLine = null;
+    // When true the "all messages" view is rendered newest-first. Off by default
+    // (chronological order); how this gets toggled is still to be decided.
+    var messageReverseOrder = false;
 
     function pad2(v) {
         return String(v).padStart(2, '0');
@@ -492,6 +511,28 @@
         return null;
     }
 
+    // The message that should stay displayed once playback of the temporary
+    // messages has ended: the last permanent message in the history
+    // (duration 0). Temporary messages (duration > 0) are only shown while playing.
+    function getLastPermanentMessageDetails(lines) {
+        if (!lines) return null;
+        for (var i = lines.length - 1; i >= 0; i--) {
+            var details = parseMessageLine(lines[i]);
+            if (details && details.durationSeconds === 0) return details;
+        }
+        return null;
+    }
+
+    // True when the view is already pinned to the "newest" end of the list
+    // (top when reversed, bottom otherwise). Used to decide whether an update
+    // should keep following the newest message or respect the user's scrollback.
+    function isMessageToggleAtEnd(el) {
+        if (!el) return true;
+        var tolerance = 8;
+        if (messageReverseOrder) return el.scrollTop <= tolerance;
+        return (el.scrollHeight - el.clientHeight - el.scrollTop) <= tolerance;
+    }
+
     function formatAllMessages(raw, bootTimeString) {
         if (!raw || !raw.length) return raw || '';
         var lines = String(raw).split('\n');
@@ -508,10 +549,11 @@
                 formatted.push('<p>' + line + '</p>');
             }
         }
-        return formatted.reverse().join('');
+        if (messageReverseOrder) formatted.reverse();
+        return formatted.join('');
     }
 	var cacheddata={}
-    function updateMessageToggle(tobj) {
+    function updateMessageToggle(tobj, force) {
         try {
             var payload = tobj && tobj.configstate ? tobj.configstate : (tobj || {});
             var cur = payload.currentmessage || "";
@@ -522,20 +564,22 @@
             var clearMessagesButton = geid('clearMessagesButton');
             if (clearMessagesButton) clearMessagesButton.style.display = all.trim().length ? '' : 'none';
 			
-			if(cacheddata.cur==cur && cacheddata.all==all && cacheddata.state==messageToggleState) return; // nothing to update
+			if(!force && cacheddata.cur==cur && cacheddata.all==all && cacheddata.state==messageToggleState && cacheddata.reverse==messageReverseOrder) return; // nothing to update
 			cacheddata.cur=cur;
 			cacheddata.all=all;
 			cacheddata.state=messageToggleState;
+			cacheddata.reverse=messageReverseOrder;
 
             if (messageToggleState === 'currentmessage') {
                 var lines = [];
                 if (all) lines = all.trim().split('\n');
 
                 var currentDetails = getCurrentMessageDetails(lines, cur);
+                var newestLine = lines.length ? lines[lines.length - 1] : null;
 
-                // First load: ignore parsing full history, just sync the count and showcase what's currently active.
-                if (lastAllMessagesCount === 0 && lines.length > 0) {
-                    lastAllMessagesCount = lines.length;
+                // First load: ignore parsing full history, just sync the marker and showcase what's currently active.
+                if (lastAllMessagesLine === null && newestLine !== null) {
+                    lastAllMessagesLine = newestLine;
                     if (cur) messageQueue.push({
                         text: cur,
                         time: currentDetails ? currentDetails.time : '',
@@ -543,9 +587,22 @@
                         duration: 2000
                     });
                 }
-                // New messages appended
-                else if (lines.length > lastAllMessagesCount) {
-                    for (var i = lastAllMessagesCount; i < lines.length; i++) {
+                // History cleared or explicitly reset
+                else if (newestLine === null) {
+                    lastAllMessagesLine = null;
+                    messageQueue = [];
+                    if (messagePlayTimeout) {
+                        clearTimeout(messagePlayTimeout);
+                        messagePlayTimeout = null;
+                    }
+                }
+                // New messages appended: queue every line after the last one we saw.
+                // (Comparing the newest line instead of the count also works once the
+                // device's allmessages cap is reached and the count stops growing.)
+                else if (newestLine !== lastAllMessagesLine) {
+                    var lastSeenIndex = lines.indexOf(lastAllMessagesLine);
+                    var firstNew = lastSeenIndex === -1 ? lines.length : lastSeenIndex + 1;
+                    for (var i = firstNew; i < lines.length; i++) {
                         var details = parseMessageLine(lines[i]);
                         if (details) {
                             messageQueue.push({
@@ -554,18 +611,9 @@
                                 durationSeconds: details.durationSeconds,
                                 duration: details.durationSeconds * 1000 || 2000
                             });
-                        } 
+                        }
                     }
-                    lastAllMessagesCount = lines.length;
-                }
-                // History cleared or explicitly reset
-                else if (lines.length < lastAllMessagesCount) {
-                    lastAllMessagesCount = lines.length;
-                    messageQueue = [];
-                    if (messagePlayTimeout) {
-                        clearTimeout(messagePlayTimeout);
-                        messagePlayTimeout = null;
-                    }
+                    lastAllMessagesLine = newestLine;
                 }
 
                 // Kickstart sequence queue playing if its currently idle
@@ -575,22 +623,33 @@
 
                 // Normal un-queued status display  
                 if (messageQueue.length === 0 && !messagePlayTimeout) {
-                    var currentTime = currentDetails ? formatBootRelativeMessageTime(currentDetails.time, bootTime) : '';
-                    el.innerText = cur ? (currentTime ? currentTime + ' : ' + cur : cur) : '-';
+                    // Rest on the last permanent message (duration 0), not on the last
+                    // played message which may be temporary. Fall back to the server's
+                    // current message if no permanent message is present in the history.
+                    var restDetails = getLastPermanentMessageDetails(lines) || currentDetails;
+                    var restText = restDetails ? restDetails.text : cur;
+                    var currentTime = restDetails ? formatBootRelativeMessageTime(restDetails.time, bootTime) : '';
+                    el.innerText = restText ? (currentTime ? currentTime + ' : ' + restText : restText) : '-';
                     el.style.backgroundColor = '';
                 }
 
                 el.title = 'Click to show all messages';
                 el.style.whiteSpace = 'normal'; 
+                el.className = 'message-current';
             } else {
+                // Decide before swapping the content whether to keep following the
+                // newest message; skip if the user has scrolled back.
+                var wasAtEnd = messageToggleFirstLoad || isMessageToggleAtEnd(el);
                 el.innerHTML = all && all.length ? formatAllMessages(all, bootTime) : '-';
                 el.title = 'Click to show current message';
                 el.style.whiteSpace = 'normal';
                 el.style.backgroundColor = '';
-                if (messageToggleFirstLoad) {
-                    el.scrollTop = 0;
-                    messageToggleFirstLoad = false;
+                el.className = 'message-all';
+                if (wasAtEnd) {
+                    // Newest message lives at the top when reversed, at the bottom otherwise.
+                    el.scrollTop = messageReverseOrder ? 0 : el.scrollHeight;
                 }
+                messageToggleFirstLoad = false;
             }
         } catch (e) {
             console.error(e)
@@ -603,8 +662,9 @@
             var el = geid('messageToggle');
             if (el) {
                 el.style.backgroundColor = '';
-                // When queue finishes, refresh display to show current permanent message
-                updateMessageToggle(dataobj);
+                // When queue finishes, force a refresh so the panel stops on the
+                // last permanent message (bypass the cache; data itself is unchanged).
+                updateMessageToggle(dataobj, true);
             }
             return;
         }
@@ -676,26 +736,23 @@
 <div style="">
     <div style="float:right;">
         <table style="border:0px solid black;"><tr style="border:0px solid black;">
-            <td style="border:1px solid gray;padding:0px;max-height:10em;">
+            <td style="position:relative;border:1px solid gray;padding:0px;max-height:10em;">
         <div id="messageToggleWrapper"
              style="max-width:480px;text-align:right;font-size:80%">
             <div id="messageToggle"
-                 style="cursor:pointer;white-space:normal;overflow:auto;text-align: left;max-height:10em;line-height:1.15em">
+                 style="cursor:pointer;white-space:normal;overflow:auto;text-align: left;max-height:10em;line-height:1.15em;padding-right:18px">
                 (no message)
             </div>
         </div>
+            <button id="clearMessagesButton" title="Clear messages" type="button" style="display:none;position:absolute;top:2;right:2;z-index:2;font-size:100%;margin:0;padding:0 3px;line-height:1;cursor:pointer;background:rgba(255,255,255,0.85);border:1px solid #ddd;border-radius:0 0 0 3px">⊘</button>
             </td><td>
         <div style="float:right;font-size: 70%">
-            <table style="border:0px"><tr> <td> 
-            <button id="clearMessagesButton" title="Clear messages" type="button" style="display:none;font-size: 120%;margin-left: 0px">⊘ </button><br>   
-            </td></tr><tr><td>
+            <table style="border:0px"><tr><td>
             <a id="ipAddressLink" class="ip-address-link" href="#" style="display:none;font-size: 70%" title="Open the device directly by IP address" rel="noopener">http://</a>
             <a id="mdnsAddressLink" class="ip-mdns-link" href="#" style="display:none;font-size: 70%" title="Open the device by its mDNS name" rel="noopener">http://</a>
             </trtd></tr></table>
-            <a target="_blank" href="readme.txt">Help</a><br>
-
             <a target="_blank" href="data.txt">Data file</a><a target="_blank" href="data.txt"
-                                                               download>(download)</a><br>
+                                                               download>(download)</a> - <a target="_blank" href="readme.txt">Help</a><br>
             <a target="_blank" href="stats/edit.html?fileurl=../config.json">Edit config</a> -
             <a target="_blank" href="stats/stats.html">Ol' Stats page</a><br>
             <a target="_blank" href="stats/price.html">Price calculate page</a><br>

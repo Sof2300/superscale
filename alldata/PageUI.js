@@ -338,7 +338,7 @@ class BlockInfoUI {
         const average=this.getAverageInfo(blocks);
         if(average.count===0) return "["+label+" x0]: no data";
         if(includeBE) {
-            return "["+label+" x"+average.count+"]: "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€) - "+average.be.toFixed(0)+"% BE";
+            return "["+label+" x"+average.count+"]: "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€) · "+average.be.toFixed(0)+"% BE";
         }
         let result="["+label+" x"+average.count+"]: "+average.harvest.toFixed(0)+"g ("+average.price.toFixed(2)+"€)";
         return result;
@@ -388,7 +388,7 @@ class BlockInfoUI {
         }
         if(name=="totalharvest") {
             const beval=this.data && this.data["blockinfo"] ? this.data["blockinfo"]["blockbe"] : "";
-            const beStr=String(beval).length>0 && Number.isFinite(Number(beval)) ? " - "+Number(beval)+"% BE" : "";
+            const beStr=String(beval).length>0 && Number.isFinite(Number(beval)) ? " · "+Number(beval)+"% BE" : "";
             if(!this.filedata) val+=" g"+beStr;
             else {
                 val+="g ("+this.getPriceForWeight(this.currentspecies,val).toFixed(2)+"€)"+beStr;

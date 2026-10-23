@@ -12,6 +12,7 @@ class Component {
 	updateHtml(){}
 	removeStyle(k){delete this.styles[k];}
 	setStyle(k,v){this.styles[k]=v;}
+	setStyles(styleobj){ for(let s in styleobj) this.setStyle(s, styleobj[s]);}
 	getStyleHtml(){
 		let first=true, style="";
 		for(let p in this.styles){

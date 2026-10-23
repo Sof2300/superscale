@@ -587,11 +587,71 @@ function applyRowFilter(rowData, headers, req) {
                         if (!val) return false;
                         let rowDate = makeDate(val).getTime();
                         if (!Number.isFinite(rowDate)) return false;
-                        if (req.dateFilter.from && rowDate < new Date(req.dateFilter.from).getTime()) return false;
-                        if (req.dateFilter.to && rowDate >= new Date(req.dateFilter.to).getTime() + 86400000) return false;
+                        // A relative window is recalculated against today every time the page is opened.
+                        let range = resolveDateFilter(req.dateFilter);
+                        let fromDay = range.from ? dateInputToDay(range.from) : null;
+                        let toDay = range.to ? dateInputToDay(range.to) : null;
+                        if (fromDay && rowDate < fromDay.getTime()) return false;
+                        if (toDay && rowDate >= toDay.getTime() + 86400000) return false;
                 }
         }
         return true;
+}
+
+// --- Relative date filter ---
+// A request can store its date window as "days before today" instead of fixed dates. Saved as 3,
+// it always means the last 3 days, whenever the Table View or the Graphic View is opened later.
+
+// A number field's value, or null when it is empty/unusable (= that side is unbounded).
+function dayOffsetOrNull(value) {
+        if (value === null || value === undefined || value === "") return null;
+        let n = Number(value);
+        return Number.isFinite(n) ? n : null;
+}
+
+// An <input type="date"> value ("YYYY-MM-DD") at local midnight, or null if unusable.
+function dateInputToDay(value) {
+        let tab = String(value || "").split("-");
+        if (tab.length !== 3) return null;
+        let d = new Date(Number(tab[0]), Number(tab[1]) - 1, Number(tab[2]));
+        return Number.isFinite(d.getTime()) ? d : null;
+}
+
+// The date that lies `days` before today, as a "YYYY-MM-DD" string.
+function dayOffsetToDate(days) {
+        let d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - days);
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// The absolute "from"/"to" dates a date filter currently means, resolving a relative one against
+// today. An empty string means unbounded on that side, in both modes.
+function resolveDateFilter(df) {
+        if (!df) return { from: "", to: "" };
+        if (!df.relative) return { from: df.from || "", to: df.to || "" };
+        let fromDays = dayOffsetOrNull(df.fromDays);
+        let toDays = dayOffsetOrNull(df.toDays);
+        return {
+                from: fromDays === null ? "" : dayOffsetToDate(fromDays),
+                to: toDays === null ? "" : dayOffsetToDate(toDays)
+        };
+}
+
+// The relative window in words: "last 3 days", "3 days ago to yesterday", ...
+function describeRelativeRange(df) {
+        let from = dayOffsetOrNull(df.fromDays);
+        let to = dayOffsetOrNull(df.toDays);
+        let day = n => n === 0 ? "today" : n === 1 ? "yesterday" : n + " days ago";
+        if (from !== null && to === 0) {
+                if (from === 0) return "today only";
+                if (from === 1) return "yesterday and today";
+                return "last " + from + " days";
+        }
+        if (from === null && to === null) return "any date";
+        if (from === null) return "up to " + day(to);
+        if (to === null) return "since " + day(from);
+        return day(from) + " to " + day(to);
 }
 
 // --- Hideable columns (shared by the table pages) ---
@@ -604,12 +664,23 @@ function isColumnHidden(hidden, header) { return hidden.indexOf(header) >= 0; }
 // the request name. Returns an HTML fragment (the search text is emphasised).
 function describeRequest(req) {
         let parts = [];
-        parts.push(req.search ? `search: <strong>${req.search}</strong>` : "<em>no search text</em>");
+        parts.push(req.search ? `search: <strong>${req.search}</strong>` : "<em>no request text</em>");
         if (req.search) parts.push(req.isAnd ? "require ALL conditions (AND)" : "require ANY condition (OR)");
         if (req.dateFilter && req.dateFilter.enabled) {
-                parts.push(`date filter on ${req.dateFilter.column} from ${req.dateFilter.from || "…"} to ${req.dateFilter.to || "…"}`);
+                let df = req.dateFilter;
+                if (df.relative) {
+                        parts.push(`${df.column}: ${describeRelativeRange(df)}`);
+                } else if (df.from && df.to) {
+                        parts.push(`${df.column} from ${df.from} to ${df.to}`);
+                } else if (df.from) {
+                        parts.push(`${df.column} from ${df.from}`);
+                } else if (df.to) {
+                        parts.push(`${df.column} up to ${df.to}`);
+                } else {
+                        parts.push(df.column);
+                }
         }
-        return parts.join(" &nbsp;|&nbsp; ");
+        return parts.join(" &nbsp;•&nbsp; ");
 }
 
 // The per-harvest breakdown (harvest1/harvest1date, ...) plus the harvest summary columns,

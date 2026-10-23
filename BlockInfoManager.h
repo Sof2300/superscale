@@ -154,7 +154,6 @@ private:
 		return -1;
 	}
 
-
 	//	bool waitingpostupdate=false,
 	bool updatebusy=false;
 	Ticker ticker;/*

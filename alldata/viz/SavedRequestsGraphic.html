@@ -15,6 +15,8 @@
 
         /* Header styling */
         .page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .request-controls { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+        .sort-select { padding: 3px 6px; border-radius: 4px; border: 1px solid #bbb; font-size: 0.9em; background: white; }
         .nav-buttons { display: flex; gap: 10px; }
         .nav-buttons a { background: #0056b3; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; transition: 0.2s; }
         .nav-buttons a:hover { background: #004494; }
@@ -48,6 +50,10 @@
         .block-square .species-tag {
             font-size: 0.8em; font-weight: normal; opacity: 0.85; margin-top: 1px;
         }
+        /* Block date, in the same small font as the species. */
+        .block-square .block-date {
+            font-size: 0.8em; font-weight: normal; opacity: 0.85; margin-top: 1px;
+        }
         .block-square:hover { transform: scale(1.2); z-index: 10; border-color: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); color: #000; }
 
         .empty-state { color: #888; font-style: italic; padding: 5px 0; }
@@ -65,11 +71,45 @@
     <script>
         let parsedTableData = [];
         let blockInfoIndex = {}; // Required globally for the tooltips
+        let allSavedRequests = []; // Kept so the sorting control can re-render without re-fetching
+
+        // The option list of a card's sorting control: the order the rows come in data.txt, or any
+        // column of the table. The choice belongs to the saved request, so it is stored in it.
+        function sortOptionsHtml(selected) {
+            let opts = [`<option value=""${selected ? "" : " selected"}>Data order</option>`];
+            parsedTableData[0].forEach(h => {
+                opts.push(`<option value="${h}"${h === selected ? " selected" : ""}>${h}</option>`);
+            });
+            return opts.join("");
+        }
+
+        // The sorting choice lives inside each saved request, so every card can differ.
+        function persistSortColumn(name, column) {
+            let saved = JSON.parse(localStorage.getItem("savedRequests") || "[]");
+            let req = saved.find(r => r.name === name);
+            if (!req) return;
+            req.sortColumn = column || "";
+            localStorage.setItem("savedRequests", JSON.stringify(saved));
+        }
+
+        // Numeric when both sides are numbers, chronological for D/M/YY dates, empty values last,
+        // otherwise alphabetical (with embedded numbers compared as numbers).
+        function compareValues(a, b) {
+            let blankA = a === undefined || a === null || String(a).trim() === "";
+            let blankB = b === undefined || b === null || String(b).trim() === "";
+            if (blankA || blankB) return (blankA && blankB) ? 0 : (blankA ? 1 : -1);
+            let da = makeDate(a).getTime(), db = makeDate(b).getTime();
+            if (Number.isFinite(da) && Number.isFinite(db)) return da - db;
+            let na = Number(String(a).replace("%", "")), nb = Number(String(b).replace("%", ""));
+            if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+            return String(a).localeCompare(String(b), undefined, { numeric: true });
+        }
 
         $(document).ready(function() {
             let savedDataRaw = localStorage.getItem('savedRequests');
             let savedRequests = savedDataRaw ? JSON.parse(savedDataRaw) : [];
             savedRequests.sort((a, b) => a.name.localeCompare(b.name));
+            allSavedRequests = savedRequests;
 
             if(savedRequests.length === 0) {
                 $('#requestsContainer').html('<p>No requests saved yet. Go to the main view to save some.</p>');
@@ -131,12 +171,22 @@
             let container = $('#requestsContainer');
             container.empty();
 
+            // One sorting control per card, re-rendering the cards when it changes.
+            container.off("change", ".sort-select").on("change", ".sort-select", function () {
+                let req = allSavedRequests.find(r => r.name === $(this).data("name"));
+                if (!req) return;
+                req.sortColumn = $(this).val();
+                persistSortColumn(req.name, req.sortColumn);
+                renderGraphicUI(allSavedRequests);
+            });
+
             let headers = parsedTableData[0];
             let dataRows = parsedTableData.slice(1);
 
             // Helpful indexes
             let idxId = headers.indexOf("id");
             let idxSpecies = headers.indexOf("species");
+            let idxBlockDate = headers.indexOf("blockdate");
             let idxBE = headers.indexOf("BE");
             let idxTotalH = headers.indexOf("totalharvest");
             let idxHarvCount = headers.indexOf("harvestcount");
@@ -144,6 +194,8 @@
             savedRequests.forEach(req => {
                 // Filter rows for this specific request
                 let matchingRows = filterRows(dataRows, headers, req);
+                let sortIdx = req.sortColumn ? headers.indexOf(req.sortColumn) : -1;
+                if (sortIdx >= 0) matchingRows.sort((a, b) => compareValues(a[sortIdx], b[sortIdx]));
 
                 // Calculate Summaries
                 let sumBE = 0, countBE = 0;
@@ -152,6 +204,7 @@
                 let squaresHtml = matchingRows.map(row => {
                     let bId = row[idxId] || "?";
                     let species = row[idxSpecies] || "";
+                    let blockDate = row[idxBlockDate] || "";
                     let be = row[idxBE];
                     let harvest = row[idxTotalH];
                     let harvCount = row[idxHarvCount] || 0;
@@ -181,6 +234,7 @@
                                  data-hcount="${harvCount}">
                                 ${bId}
                                 <div class="species-tag">${species}</div>
+                                <div class="block-date">${blockDate}</div>
                             </div>`;
                 }).join("");
 
@@ -199,10 +253,13 @@
                                 <h2 class="request-title">${req.name}</h2>
                                 <div class="req-info">${describeRequest(req)}</div>
                             </div>
-                            <div class="summary-stats">
-                                <div class="stat-item">Total Blocks: ${matchingRows.length}</div>
-                                <div class="stat-item">Avg Yield: ${avgHarvStr}</div>
-                                <div class="stat-item">Avg BE: ${avgBEStr}</div>
+                            <div class="request-controls">
+                                <label><select class="sort-select" data-name="${req.name}">${sortOptionsHtml(req.sortColumn)}</select></label>
+                                <div class="summary-stats">
+                                    <div class="stat-item">Total Blocks: ${matchingRows.length}</div>
+                                    <div class="stat-item">Avg Yield: ${avgHarvStr}</div>
+                                    <div class="stat-item">Avg BE: ${avgBEStr}</div>
+                                </div>
                             </div>
                         </div>
                         <div class="block-grid">

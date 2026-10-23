@@ -329,7 +329,7 @@ class LineUI {
             }
             var keycell = this.table.addCell(this.row.index, this.getKeyStyle(key));
             var valcell = this.table.addCell(this.row.index, this.getValueStyle(key));
-            keycell.setStyle("padding-right", "0");
+            keycell.setStyle("padding-right", "2px");
             valcell.setStyle("padding-left", "0");
             var valuecomp = new Input(valcell, valcell.id + "_input_" + key + lineui_count++);
 
@@ -1073,13 +1073,18 @@ class CommandLineUI {
         this.data = data;
     }
 
-    addAsRow(multilineui, buttondata) {
+    addAsRow(multilineui, skipCell) {
         this.row = multilineui.addRow(this.data);
-        var cell = this.row.addCell();
-        //   this.row2=multilineui.addRow();
-        //   var cell2=this.row2.addCell();
-        this.buttonpanel = new CommandButtonPanel(cell, cell.id + "multlinebuttonpanel");
-//        this.valuefields=cell.
+        // Multi/pile rows host their buttons in a cell appended to the data row,
+        // while the main command row hosts its buttons in dedicated cells. In that
+        // case skipCell avoids appending an extra (empty) cell to the row, but the
+        // panel must still exist because getCompIds() reads buttonpanel.buttons.
+        if (skipCell) {
+            this.buttonpanel = new CommandButtonPanel(undefined, this.row.id + "buttonpanel");
+        } else {
+            var cell = this.row.addCell();
+            this.buttonpanel = new CommandButtonPanel(cell, cell.id + "multlinebuttonpanel");
+        }
         return this.row;
     }
 
@@ -1137,10 +1142,11 @@ class CommandLineUI {
 /////////////////////
 ////////////////////
 class CommandMultiUI {
-    constructor(data, title, noadd) {
+    constructor(data, title, noadd, order) {
         this.noadd = noadd;
         this.title = title;
         this.data = data;
+        this.order = order;
         this.init = false;
         this.commandlineuis = [];//{};
         this.urls = {
@@ -1194,34 +1200,45 @@ class CommandMultiUI {
     }
 
     initCreate(multilineui) {
-        this.setbstyle = {"font-size": "100%", "margin": "2px"};
-        this.clearbstyle = {"font-size": "55%", "margin": "2px"};
+      //  this.setbstyle = {"font-size": "100%", "margin-left": "5px","margin-right":"30px"};
+        this.clearbstyle = {"font-size": "60%", "margin-left": "15px","padding-top": "3px", "padding-bottom": "3px"};
+        this.clearbstyle2 = {"font-size": "60%", "margin-left": "3px","padding-top": "3px", "padding-bottom": "3px"};
         this.multilineui = multilineui;
         var row = multilineui.addEmptyRow();
-        var cell2 = row.addCell();
-        cell2.setText(this.title);
-        cell2.setStyle("font-size", "60%");
-        cell2.setStyle("font-weight", "bold");
-        cell2.setStyle("color", "darkgray");
-        cell2.setStyle("padding-top", "12px");
         var cell = row.addCell();
+        cell.setText(this.title);
+        cell.setStyle("font-size", "80%");
+        cell.setStyle("font-weight", "bold");
+        cell.setStyle("color", "darkgray");
         cell.setStyle("padding-top", "12px");
-        var cell25 = row.addCell();
-        var cell3 = row.addCell();
-        cell3.setStyle("padding-top", "12px");
-        cell3.setStyle("white-space", "no-wrap");
-        var cell35 = row.addCell();
-        var cell4 = row.addCell();
-        cell4.setStyle("padding-top", "12px");
-        this.extracell = cell4;
-        var extrastyles = {"width": "100%", "padding-top": "3px", "padding-bottom": "3px"};
+
+        cell.setAttribute("colspan","9");
+
+        // Exposed so CommandUI.createMultiCheckbox() has a valid parent to attach to.
+        this.cell = cell;
+    //    var cell = row.addCell();
+    //    cell.setStyle("padding-top", "12px");
+
+   //     var cell25 = row.addCell();
+   //     var cell3 = row.addCell();
+   //     cell3.setStyle("padding-top", "12px");
+   //     cell3.setStyle("white-space", "no-wrap");
+   //     var cell35 = row.addCell();
+   //     var cell4 = row.addCell();
+   //     cell4.setStyle("padding-top", "12px");
+   //     this.extracell = cell4;
+        // Placeholder cell on the multi header row: when multi holds no entries the pile
+        // section is moved in here so it sits on the same line, right of the multi controls.
+       // this.pilecell = row.addCell({"vertical-align": "top", "padding-left": "15px"});
+        this.pilecell=cell;
+        var extrastyles = {/*"width": "100%",*/ "padding-top": "3px", "padding-bottom": "3px"};
         if (!this.noadd) {
             this.genbuttonpanel = new CommandButtonPanel(cell, cell.id + "multlinegenbuttonpanel");
             this.genbuttonpanel.addButton("addCurrent", "add +", Object.assign({}, this.clearbstyle, extrastyles), this.addCurrent.bind(this));
         }
-        this.genbuttonpanel = new CommandButtonPanel(cell3, cell3.id + "multlinegenbuttonpanel");
+        this.genbuttonpanel = new CommandButtonPanel(cell, cell.id + "multlinegenbuttonpanel");
 
-        this.genbuttonpanel.addButton("clearAll", "clear all x", this.clearbstyle, this.clearAll.bind(this));
+        this.genbuttonpanel.addButton("clearAll", "clear all x",this.clearbstyle2, this.clearAll.bind(this));
 
     }
 
@@ -1241,8 +1258,9 @@ class CommandMultiUI {
         var line = clineui.addAsRow(this.multilineui);
         line.row.setStyle("border", "solid lightgray 1px");
         line.row.setStyle("font-size", "85%");
+        this.setbstyle = {"font-size": "75%", "margin-left": "5px","margin-right":"5px"};
         clineui.buttonpanel.addButton("set", "set -", this.setbstyle, this.set.bind(this, i));
-        clineui.buttonpanel.addButton("clear", "clear x", this.clearbstyle, this.clear.bind(this, i));
+        clineui.buttonpanel.addButton("clear", "clear x", this.setbstyle, this.clear.bind(this, i));
         this.commandlineuis[i] = clineui;
 
         // Add Enter key listeners to all fields in this multi row
@@ -1369,6 +1387,7 @@ class CommandPileUI {
         this.titletextcomp = new SimpleText(this.titlediv, "piletitle", "Pile");
         this.titletextcomp.setStyle("font-size", "75%");
         this.titletextcomp.setStyle("margin-right", "3px");
+       // this.titletextcomp.setStyle("margin-left", "40px");
         this.titletextcomp.setStyle("font-weight", "bold");
         this.titletextcomp.setStyle("color", "darkgray");
 
@@ -1378,8 +1397,9 @@ class CommandPileUI {
 
         this.usepilecheckbox = new CheckBox(this.titlediv, "pilecheckbox");
         var usepiletext = new SimpleText(this.titlediv, "pilecheckboxtext", "use pile")
-        usepiletext.setStyle("font-size", "75%");
+        usepiletext.setStyle("font-size", "60%");
         this.usepilecheckbox.setStyle("margin-left", "15px");
+        this.usepilecheckbox.setStyles({"position": "relative", "top": "3px"});
         if (data["configstate"]) if (this.configdata["pile"]) this.usepilecheckbox.setText(1);
         this.usepilecheckbox.pchecked = this.usepilecheckbox.element.checked;
         this.usepilecheckbox.addListener("onchange", this.pileuse.bind(this));
@@ -1388,8 +1408,10 @@ class CommandPileUI {
         var fifotext = new SimpleText(this.titlediv, "fifocheckboxtext", "fifo");
         fifotext.setStyle("font-size", "60%");
         if (this.configdata["fifo"]) this.fifocheckbox.setText(1);
+        fifotext.setStyle("margin-right", "5px");
         this.fifocheckbox.setStyle("font-size", "60%");
         this.fifocheckbox.setStyle("margin-left", "10px");
+        this.fifocheckbox.setStyles({"position": "relative", "top": "3px"});
         this.fifocheckbox.pchecked = this.fifocheckbox.element.checked;
         this.fifocheckbox.addListener("onchange", this.fifo.bind(this));
 
@@ -1630,10 +1652,13 @@ class CommandUI {
         multitext.setStyle("font-size", "55%");
         //    saveonsettext.setStyle("float","right");
         //     this.multicheckbox.setStyle("float","right");
-        //   this.multicheckbox.setStyle("margin-left","25px");
+        multitext.setStyle("margin-right","25px");
+        //    this.multicheckbox.setStyle("margin-left","25px");
         //   this.multicheckbox.setStyle("margin-top","7px");
         //   this.multicheckbox.setStyle("margin-bottom","10px");
-        this.multicheckbox.setStyle("font-size", "55%");
+           this.multicheckbox.setStyle("position","relative");
+        this.multicheckbox.setStyle("position","relative");
+        this.multicheckbox.setStyle("top", "2px");
         if (data["configstate"]) if (data["configstate"]["multi"]) this.multicheckbox.setText(1);
         this.multicheckbox.pchecked = this.multicheckbox.element.checked;
         this.multicheckbox.addListener("onchange", this.multiChanged.bind(this));
@@ -1658,6 +1683,7 @@ class CommandUI {
         this.saveonsetcheckbox = new CheckBox(this.comp, "saveonsetcheckbox");
         var saveonsettext = new SimpleText(this.comp, "saveonsetcheckboxtext", "save on set");
         saveonsettext.setStyle("font-size", "65%");    //    saveonsettext.setStyle("float","right");   //     this.saveonsetcheckbox.setStyle("float","right");
+        this.saveonsetcheckbox.setStyles({"position": "relative", "top": "3px"});
         this.saveonsetcheckbox.setStyle("margin-left", "25px");
         this.saveonsetcheckbox.setStyle("margin-top", "7px");
         this.saveonsetcheckbox.setStyle("margin-bottom", "10px");
@@ -1677,6 +1703,7 @@ class CommandUI {
         this.disablegeneratecheckbox = new CheckBox(this.comp, "disablegeneratecheckbox");
         var disablegeneratetext = new SimpleText(this.comp, "disablegeneratecheckboxtext", "disable id generation");
         disablegeneratetext.setStyle("font-size", "65%");    //    disablegeneratetext.setStyle("float","right");   //     this.disablegeneratecheckbox.setStyle("float","right");
+        this.disablegeneratecheckbox.setStyles({"position": "relative", "top": "3px"});
         this.disablegeneratecheckbox.setStyle("margin-left", "25px");
         this.disablegeneratecheckbox.setStyle("margin-top", "7px");
         this.disablegeneratecheckbox.setStyle("margin-bottom", "10px");
@@ -1688,6 +1715,7 @@ class CommandUI {
         this.disablerfididsavecheckbox = new CheckBox(this.comp, "disablerfididsavecheckbox");
         var disablerfididsavetext = new SimpleText(this.comp, "disablerfididsavecheckboxtext", "disable save on rfid/id association");
         disablerfididsavetext.setStyle("font-size", "65%");
+        this.disablerfididsavecheckbox.setStyles({"position": "relative", "top": "3px"});
         this.disablerfididsavecheckbox.setStyle("margin-left", "25px");
         this.disablerfididsavecheckbox.setStyle("margin-top", "7px");
         this.disablerfididsavecheckbox.setStyle("margin-bottom", "10px");
@@ -1702,7 +1730,7 @@ class CommandUI {
         this.multilineui.table.setStyle("border", "none");
         this.commandlineui = new CommandLineUI(data["data"]);
 
-        var lineui = this.commandlineui.addAsRow(this.multilineui);
+        var lineui = this.commandlineui.addAsRow(this.multilineui, true);
         lineui.row.setStyle("border", "solid lightgray 1px");
         var newrow = this.multilineui.addEmptyRow();
         var cell1 = newrow.addCell();
@@ -1713,7 +1741,6 @@ class CommandUI {
         var cell6 = newrow.addCell();
         var cell7 = newrow.addCell();
         var cell8 = newrow.addCell();
-        var cell9 = newrow.addCell();
         var extrastyles = {"padding-top": "4px", "padding-bottom": "4px", "margin-top": "7px"};
         var extrastyles2 = {
             "padding-top": "4px",
@@ -1724,11 +1751,20 @@ class CommandUI {
             "font-size": "100%"
         };
         var newstyle = {};
+
+        // Add recent IDs select before the set button
+        var cellIdSelect = newrow.addCell();
+        this.idSelect = new Select(cellIdSelect, "id_select");
+        this.idSelect.setStyle("font-size", "70%");
+        this.idSelect.setStyle("margin-right", "5px");
+        this.idSelect.element.title = "Recent IDs";
+        this.idSelect.addListener("onchange", this.onIdSelectChange.bind(this));
+
+        this.buttonpanel = new CommandButtonPanel(cell1, cell1.id + "multlinebuttonpanel");
         this.commandlineui.buttonpanel.addButton("set", "set ✏️", Object.assign({}, buttonstyle, extrastyles2), this.set.bind(this), cell4);
         this.commandlineui.buttonpanel.addButton("save", "save 💾", Object.assign({}, buttonstyle, extrastyles), this.save.bind(this), cell6);
         this.commandlineui.buttonpanel.addButton("undo", "undo ↺", Object.assign({}, buttonstyle, extrastyles), this.undo.bind(this), cell7);
         this.commandlineui.buttonpanel.addButton("clear", "clear 🧹", Object.assign({}, buttonstyle, extrastyles), this.clear.bind(this), cell8);
-        this.commandlineui.buttonpanel.addButton("bypass", "bypass ..", buttonstyle, this.bypass.bind(this), cell9);
 
         // Initial tag order based on current block history (or default if no model yet)
         var history = data["blockinfo"] ? data["blockinfo"]["history"] : "";
@@ -1756,11 +1792,31 @@ class CommandUI {
 
         this.commandmultiui = new CommandMultiUI(data["multi"], "Multi");
         this.commandmultiui.addRows(this.multilineui);
-        this.createMultiCheckbox(this.commandmultiui.extracell, data);
+        this.createMultiCheckbox(this.commandmultiui.cell, data);
 
         if (data["pile"]) {
             this.commandpileui = new CommandPileUI(data["pile"], data["configstate"], this.comp, order);
+            var bypassButton = this.commandpileui.pilebuttonpanel.addButton("bypass", "bypass ..", this.commandpileui.clearbstyle, this.bypass.bind(this));
+            bypassButton.setAttribute("title", "Bypass set: writes the entered values straight into the current entry, skipping the multi-command queue, the pile/undo snapshot and the save-on-set auto-save (nothing is written to the data file).");
+            this.placePile();
         }
+    }
+
+    // The pile section normally sits under the multi section. When multi holds no entries
+    // it is moved into the multi header cell so it shares that line.
+    placePile() {
+        if (!this.commandpileui || !this.commandpileui.comp || !this.commandpileui.comp.element) return;
+        var pileelement = this.commandpileui.comp.element;
+        var multiempty = this.commandmultiui.getDataMaxIndex() < 0;
+        var inline = multiempty && this.commandmultiui.pilecell;
+        var target = inline ? this.commandmultiui.pilecell : this.comp;
+        if (target && target.element && pileelement.parentNode !== target.element) target.element.appendChild(pileelement);
+        // A fieldset is block-level, so it would wrap onto its own line. When sharing the
+        // multi header line, make it inline-block and drop the top margin so the pile
+        // controls line up with the multi ones instead of flowing onto a second line.
+        this.commandpileui.comp.setStyle("display", inline ? "inline-block" : "");
+        this.commandpileui.comp.setStyle("vertical-align", inline ? "top" : "");
+        if (this.commandpileui.titlediv) this.commandpileui.titlediv.setStyle("margin-top", inline ? "0" : "15px");
     }
 
     createTagButtons(sortedTags, configstate) {
@@ -1777,12 +1833,13 @@ class CommandUI {
                 cell = newrow.addCell();
                 this.tagbuttonscell = cell; // Store reference for refresh
                 cell.setAttribute("colspan", buttonnumber);
-                var tagsTitle = new SimpleText(cell, "tags_title", "transient tag");
+                var tagsTitle = new SimpleText(cell, "tags_title", "transient");
                 tagsTitle.setStyle("font-size", "70%");
                 tagsTitle.setStyle("color", "gray");
                 tagsTitle.setStyle("margin-right", "5px");
 
                 this.tagscheckbox = new CheckBox(cell, "tagscheckbox");
+                this.tagscheckbox.setStyles({"position": "relative", "top": "3px"});
                 this.tagscheckbox.setStyle("margin-left", "5px");
                 this.tagscheckbox.setStyle("margin-right", "15px");
                 //        this.tagscheckbox.setStyle("margin-top","5px");
@@ -1945,6 +2002,20 @@ class CommandUI {
         if (this.commandpileui) {
             this.commandpileui.update(data["pile"], data["configstate"]);
         }
+        this.placePile();
+
+        // Update recent IDs select from idlist
+        if (this.idSelect && data["configstate"] && data["configstate"]["idlist"]) {
+            var idlist = data["configstate"]["idlist"];
+            var ids = idlist ? idlist.split(",") : [];
+
+            // Only update if the list has changed
+            if (this.lastIdList !== idlist) {
+                this.lastIdList = idlist;
+                var selectOptions = ["Recent IDs"].concat(ids);
+                this.idSelect.setOptions(selectOptions);
+            }
+        }
 
         // Update tag order based on current block history
         if (data["blockinfo"] && data["blockinfo"]["history"]) {
@@ -1990,6 +2061,19 @@ class CommandUI {
         if (data["configstate"]["multi"] == 1) upc = 1;
         this.multicheckbox.updateText(upc);
         this.multicheckbox.pchecked = upc;
+    }
+
+    onIdSelectChange() {
+        var selectedId = this.idSelect.element.value;
+        if (!selectedId || selectedId === "Recent IDs") return;
+
+        var idField = this.commandlineui.row.valuecomps["id"];
+        if (idField) {
+            idField.element.value = selectedId;
+            idField.updateFromUser();
+            // Return the select to its placeholder after selection.
+           // this.idSelect.element.selectedIndex = 0;
+        }
     }
 
     restore() {

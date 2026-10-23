@@ -52,6 +52,8 @@
 #define DATAVERSION_KEYTEXT "data-version"
 #define FREESPACE_KEYTEXT "free-space"
 #define TRANSIENTTAG_KEYTEXT "transient-tag"
+#define IDLIST_KEYTEXT "idlist"
+#define IDLIST_MAX 10
 
 #define LOWERSCALEPACK "command"
 
@@ -266,6 +268,7 @@ public:
 		configstate.set(DISABLERFIDIDSAVE_KEYTEXT,"0");	// maybe should not override config file value ?
 		configstate.set(DATAVERSION_KEYTEXT,"0");
 		configstate.set(TRANSIENTTAG_KEYTEXT,"1"); // maybe should not override config file value ?
+		configstate.set(IDLIST_KEYTEXT,"");
 
 		String cooldownStr = dataconfigmap.get(COOLDOWN_TIMEOUT_MS_KEYWORD);
 		if (cooldownStr.length() == 0) dataconfigmap.set(COOLDOWN_TIMEOUT_MS_KEYWORD, String(DEFAULT_COOLDOWN_TIMEOUT_MS));
@@ -734,6 +737,26 @@ private:
 
 private:
 
+	void updateIdList(String newid){
+		if(newid.length()==0) return;
+		String idlist=configstate.get(IDLIST_KEYTEXT);
+		std::vector<String> ids;
+		if(idlist.length()>0) ids=explode(idlist,",");
+		// Check if already at front (consecutive duplicate)
+		if(ids.size()>0 && ids[0]==newid) return; // Already at front, no update needed
+		// Add to front
+		ids.insert(ids.begin(), newid);
+		// Trim to max
+		if(ids.size()>IDLIST_MAX) ids.resize(IDLIST_MAX);
+		// Rebuild string
+		String newlist="";
+		for(int i=0;i<ids.size();i++){
+			if(i>0) newlist+=",";
+			newlist+=ids[i];
+		}
+		configstate.update(IDLIST_KEYTEXT,newlist);
+	}
+
 	bool writePermitted(String path){return true;}
 
 	bool serveFileWrite(String path, String &cont){
@@ -994,6 +1017,7 @@ private:
 		}
 		//	TIMEPROFILER.printick("rangeSaveRequest","postappendloop");
 		datamap.update(ID_TEXT,lastkey);// set last id
+		if(changed) updateIdList(lastkey);
 		if(changed && configstate.get(PILE_KEYTEXT)=="1") pileman.pop();
 		//	Serial.println(String()+"DataManager::rangeSaveRequest 7 :"+(millis()-ts)+"ms");ts=millis();
 		*error=!changed;
@@ -1085,6 +1109,7 @@ public:
 			beepError();
 			return false;
 		}
+		updateIdList(datamap.get(ID_TEXT));
 		bool changed=false;
 //		if(testSavability(get(COMMAND_TEXT),get(ARGUMENT_TEXT))) {
 	//		Serial.println("DataManager::saveCurrent 1.5 :");
@@ -1212,6 +1237,7 @@ public:
 		jsonresponse+=",\"pile\":"+pileman.getJson();
 		jsonresponse+=",\"config\":"+dataconfigmap.getJson({"password","stpassword","appassword"});
 		jsonresponse+=",\"configstate\":"+configstate.getJson();
+		jsonresponse+=",\"idlist\":\""+jsonEscape(configstate.get(IDLIST_KEYTEXT))+"\"";
 		jsonresponse+="}";
 		//Serial.println(String()+"DataManager:makeJson jsonresponse :"+jsonresponse);
 		return jsonresponse;
@@ -1240,15 +1266,17 @@ public:
 
 	bool set(String key,String arg){
 		if(discardValue(key,arg)) return false;
-		if(datamap.exists(key)) beepset(datamap,key,arg,true,SETFREQ,SETLENGTH);
-		else if(dataconfigmap.exists(key)) beepset(dataconfigmap,key,arg);
-		else if(blockinfo.exists(key)) beepset(blockinfo,key,arg,true,SETBLOCKFREQ,SETBLOCKLENGTH);
-		else if(scalemap.exists(key)) beepset(scalemap,key,arg);
-		else if(configstate.exists(key)) beepset(configstate,key,arg);
+		bool changed=false;
+		if(datamap.exists(key)) changed=beepset(datamap,key,arg,true,SETFREQ,SETLENGTH);
+		else if(dataconfigmap.exists(key)) changed=beepset(dataconfigmap,key,arg);
+		else if(blockinfo.exists(key)) changed=beepset(blockinfo,key,arg,true,SETBLOCKFREQ,SETBLOCKLENGTH);
+		else if(scalemap.exists(key)) changed=beepset(scalemap,key,arg);
+		else if(configstate.exists(key)) changed=beepset(configstate,key,arg);
 		else {
 			Serial.println (String()+"Datamanager:: no set :"+key+" "+arg);
 			return false;
 		}
+		if(changed && key==ID_TEXT) updateIdList(arg);
 		return true;
 	}
 };

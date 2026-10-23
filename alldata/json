@@ -1,16 +1,8 @@
-{"data":{"date":"","id":"N78","command":"harvest","argument":""},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":128,"blockdate":"24/11/25","flushes":[{"ts":"22/1/26","val":"751"},{"ts":"3/2/26","val":"264"},{"ts":"15/2/26","val":"282"},{"ts":"27/2/26","val":"203"},{"ts":"12/3/26","ts2":"13/3/26","val":"191"},{"ts":"26/3/26","ts2":"5/4/26","val":"357"}],"flushnumber":6,"formula":"Pn3x6","history":"24/11/25,N78,species,HUn
-24/11/25,N78,blockdate,24/11/25
-24/11/25,N78,formula,Pn3x6
-24/11/25,N78,spawncode,#C4AD-AAA
-24/11/25,N78,spawn,1/8
-22/1/26,N78,harvest,751
-3/2/26,N78,harvest,264
-15/2/26,N78,harvest,282
-27/2/26,N78,harvest,203
-12/3/26,N78,harvest,76
-13/3/26,N78,harvest,115
-26/3/26,N78,harvest,75
-4/4/26,N78,harvest,89
-5/4/26,N78,harvest,193
-","id":"N78","spawn":"#C4AD-AAA, 1/8","species":"HUn","substrate":"","totalharvest":2048,"totalsubstrate":1590},"multi":{},"pile":{},"config":{"boottime":"15/10/26 20:47:05","defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"IP":"192.168.1.142","mdns-name":"superscale","lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"transient-tag":1, "allmessages":"985 | Tzizika set ID to S69, press button to save | 0
-990 | Tzizika set ID to S68, press button to save | 0","disable-generate":0,"disable-rfid-id-save":0,"currentmessage":"Tzizika set ID to S68, press button to save","data-version":0,"fifo":0,"free-space":851968,"multi":0,"pile":0,"save-on-set":0}}
+{"data":{"date":"","id":"Z478","command":"fruit","argument":"TODAY()"},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":"","blockdate":"21/10/26","flushes":"","flushnumber":0,"formula":"","history":"21/10/26,Z478,blockdate,21/10/26
+","id":"Z478","species":"","substrate":"","totalharvest":"","totalsubstrate":""},"multi":{},"pile":{},"config":{"IP":"192.168.1.142","boottime":"22/10/26 20:12:34","cooldown-timeout-ms":2000,"defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"11655 | Tzizika rfid-undo successful: 'adding tag 04775864D32A81 as Z491' undone | 0
+11656 | Tzizika synced with superscale ! | 6
+11656 | Ready to scan a new rfid tag ! | 6
+11671 | Ready to associate empty tag 04775864D32A81 with ID Z492, press button to save | 0
+11679 | ID tag scanned 0465EC52D62A81: ID set to Z478, press button to save | 0
+11712 | Command classic tag scanned 62F8C256: Command set to fruit ! | 0
+11713 | Ready to scan a new rfid tag ! | 6","currentmessage":"Command classic tag scanned 62F8C256: Command set to fruit !","data-version":12,"disable-generate":0,"disable-rfid-id-save":0,"fifo":0,"free-space":884736,"idlist":"Z478,Z492,Z491,Z490,Z489,Z479,Z477,Z488,Z476,Z488","multi":0,"pile":0,"save-on-set":0,"transient-tag":1},"idlist":"Z478,Z492,Z491,Z490,Z489,Z479,Z477,Z488,Z476,Z488"}

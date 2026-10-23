@@ -183,6 +183,29 @@
         // Columns hidden in the request currently being edited (saved/restored with the request).
         let activeHiddenColumns = [];
 
+        // The date condition set in the toolbar, in the shape saved with a request. In relative mode
+        // the two number fields count the days back from today and are what gets stored, so the
+        // window slides with the calendar; the From/To dates are stored too, so switching back to
+        // absolute restores what was typed.
+        function collectDateFilter() {
+            return {
+                enabled: $('#enableDateFilter').is(':checked'),
+                column: $('#dateFilterColumn').val(),
+                relative: $('#dateFilterRelative').is(':checked'),
+                from: $('#dateFrom').val(),
+                to: $('#dateTo').val(),
+                fromDays: dayOffsetOrNull($('#dateFromDays').val()),
+                toDays: dayOffsetOrNull($('#dateToDays').val())
+            };
+        }
+
+        // Relative mode swaps the two date pickers for the two "days ago" fields.
+        function syncDateFilterMode() {
+            let relative = $('#dateFilterRelative').is(':checked');
+            $('#dateFrom, #dateTo').closest('label').toggle(!relative);
+            $('#dateFromDays, #dateToDays').closest('label').toggle(relative);
+        }
+
         // DataTables Global Search logic SCOPED by table ID (Matches Both Files)
         $.fn.dataTable.ext.search.push(function (settings, searchData, index, rowData, counter) {
             let req;
@@ -192,12 +215,7 @@
                 req = {
                     search: $('#searchInput').val(),
                     isAnd: $('#searchLogicAnd').is(':checked'),
-                    dateFilter: {
-                        enabled: $('#enableDateFilter').is(':checked'),
-                        column: $('#dateFilterColumn').val(),
-                        from: $('#dateFrom').val(),
-                        to: $('#dateTo').val()
-                    }
+                    dateFilter: collectDateFilter()
                 };
             }
 
@@ -237,6 +255,10 @@
                     $('#dateFilterColumn').val(req.dateFilter.column);
                     $('#dateFrom').val(req.dateFilter.from);
                     $('#dateTo').val(req.dateFilter.to);
+                    $('#dateFilterRelative').prop('checked', !!req.dateFilter.relative);
+                    $('#dateFromDays').val(req.dateFilter.fromDays == null ? "" : req.dateFilter.fromDays);
+                    $('#dateToDays').val(req.dateFilter.toDays == null ? "" : req.dateFilter.toDays);
+                    syncDateFilterMode();
                     // Restore the column choice saved with this request
                     activeHiddenColumns = (req.hiddenColumns || []).slice();
                 }
@@ -300,7 +322,9 @@
 
         // 3. Bind events & Save Feature
         $(document).ready(function() {
-            $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterColumn, #dateFrom, #dateTo').on('input change', function () {
+            syncDateFilterMode();
+            $('#dateFilterRelative').on('change', syncDateFilterMode);
+            $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterRelative, #dateFilterColumn, #dateFrom, #dateTo, #dateFromDays, #dateToDays').on('input change', function () {
                 if (dataTableInstance) dataTableInstance.draw();
             });
 
@@ -313,12 +337,7 @@
                     search: $('#searchInput').val(),
                     isAnd: $('#searchLogicAnd').is(':checked'),
                     hiddenColumns: activeHiddenColumns.slice(),
-                    dateFilter: {
-                        enabled: $('#enableDateFilter').is(':checked'),
-                        column: $('#dateFilterColumn').val(),
-                        from: $('#dateFrom').val(),
-                        to: $('#dateTo').val()
-                    }
+                    dateFilter: collectDateFilter()
                 };
 
                 let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
@@ -389,9 +408,12 @@
             Require ALL conditions (AND logic)
         </label>
         <label><input type="checkbox" id="enableDateFilter"> Date filter</label>
+        <label><input type="checkbox" id="dateFilterRelative"> Relative</label>
         <label>Column: <select id="dateFilterColumn"></select></label>
         <label>From: <input type="date" id="dateFrom"></label>
         <label>To: <input type="date" id="dateTo"></label>
+        <label>From <input type="number" id="dateFromDays" min="0" step="1" style="width:60px"> days ago</label>
+        <label>To <input type="number" id="dateToDays" min="0" step="1" style="width:60px"> days ago</label>
         <details class="col-chooser">
             <summary>Columns &#9662;</summary>
             <div class="col-chooser-panel" id="colChooserPanel"></div>

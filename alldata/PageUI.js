@@ -123,7 +123,7 @@ class ScaleUI{
 
     create(data,parentcomp){
         this.comp=new DivItem(parentcomp);
-        this.comp.setStyle("width","225");
+     //   this.comp.setStyle("width","265");
         this.titlecomp=new SimpleText(this.comp,"scaleui_title");
         this.titlecomp.setText("Weight:");
         this.titlecomp.setStyle("fontStyle","italic");
@@ -136,9 +136,32 @@ class ScaleUI{
 
         this.tarecomp=new Button(this.comp,"tare_button");
         this.tarecomp.setStyle("font-size","80%");
-        this.tarecomp.setStyle("float","right");
-        this.tarecomp.setText("Tare |");
+      //  this.tarecomp.setStyle("float","right");
+        this.tarecomp.setStyle("margin-right","10px");
+        this.tarecomp.setStyle("margin-left","15px");
+        this.tarecomp.setText("Tare");
+        this.tarecomp.setAttribute("title","Tare scale");
         this.tarecomp.setCallback(this.tare);
+
+        this.savetarecomp=new Button(this.comp,"savetare_button");
+        this.savetarecomp.setStyle("font-size","60%");
+      //  this.savetarecomp.setStyle("float","right");
+        this.savetarecomp.setStyle("margin-left","20px");
+        this.savetarecomp.setText("Save T");
+        this.savetarecomp.setAttribute("title","Save current tare to configstate");
+        this.savetarecomp.setCallback(this.saveTare);
+
+        this.loadtarecomp=new Button(this.comp,"loadtare_button");
+        this.loadtarecomp.setStyle("font-size","60%");
+      //  this.loadtarecomp.setStyle("float","right");
+        this.loadtarecomp.setStyle("margin-left","5px");
+        this.loadtarecomp.setText("Load T");
+        this.loadtarecomp.setAttribute("title","Load saved tare from configstate");
+        this.loadtarecomp.setCallback(this.loadTare);
+
+
+
+
     }
 
     tare(){
@@ -146,10 +169,35 @@ class ScaleUI{
         disenableload("/tare",[]);
     }
 
+    saveTare(){
+        console.log("save tare pressed");
+        disenableload("/tare/save",[]);
+    }
+
+    loadTare(){
+        console.log("load tare pressed");
+        disenableload("/tare/load",[]);
+    }
+
     update(data){
         if("weight" in data["scale"]) {
             var weight=data["scale"]["weight"]
             if(this.valuecomp.text!=weight) this.valuecomp.setText(weight+" g");
+        }
+        if(data["configstate"] && ("savedtare" in data["configstate"])) {
+            var st = data["configstate"]["savedtare"];
+            if(this.loadtarecomp && this.loadtarecomp.setAttribute) {
+                if(st && st.length > 0) {
+                    this.loadtarecomp.setAttribute("title", "Load saved tare (" + st + "g)");
+                    this.loadtarecomp.removeAttribute("disabled");
+                } else {
+                    this.loadtarecomp.setAttribute("title", "No saved tare in memory");
+                    this.loadtarecomp.setAttribute("disabled", "disabled");
+                }
+            }
+        } else if(this.loadtarecomp && this.loadtarecomp.setAttribute) {
+            this.loadtarecomp.setAttribute("title", "No saved tare in memory");
+            this.loadtarecomp.setAttribute("disabled", "disabled");
         }
     }
 };

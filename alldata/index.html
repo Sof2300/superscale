@@ -96,12 +96,28 @@
 	#messageToggle.message-current {
     font-weight: 600;
     color: #14505c;
+    background-color: rgb(255, 248, 255);
+}
+	#messageToggle.message-current.message-error {
+    color: #8B0000;
 }
 	/* All messages: denser chronological list */
 	#messageToggle.message-all {
-
     font-weight: normal;
     color: #333;
+}
+	/* Error messages: red color */
+	.message-error {
+    color: #8B0000;
+    font-weight: 500;
+}
+	/* Success messages: green color */
+	.message-success {
+    color: #2F5F2F;
+    font-weight: 500;
+}
+	#messageToggle.message-current.message-success {
+    color: #008d00;
 }
 
 
@@ -446,21 +462,31 @@
         });
     }
 
-    // Message toggle state and updater (Refactored to be a simple, continuous queue queueing playback)
+    // Message toggle state and updater
     var messageToggleState = 'currentmessage';
     var messageToggleFirstLoad = true;
-    var messageQueue = [];
-    var messagePlayTimeout = null;
-    // Newest history line we already processed. The device caps allmessages
-    // (ALLMESSAGES_LIMIT), so the line count stops growing once the cap is hit;
-    // tracking the newest line keeps detecting messages in that case.
-    var lastAllMessagesLine = null;
     // When true the "all messages" view is rendered newest-first. Off by default
     // (chronological order); how this gets toggled is still to be decided.
     var messageReverseOrder = false;
 
     function pad2(v) {
         return String(v).padStart(2, '0');
+    }
+
+    function getMessageType(text) {
+        if (!text) return 'normal';
+        var lowerText = text.toLowerCase();
+        var isError = lowerText.indexOf('error') >= 0 || lowerText.indexOf('fail') >= 0;
+        if (isError) return 'error';
+        var isSuccess = lowerText.indexOf('saved on superscale') >= 0 ||
+                        lowerText.indexOf('successfully associated') >= 0 ||
+                        lowerText.indexOf('successfully attached') >= 0 ||
+                        lowerText.indexOf('successfully erased') >= 0 ||
+                        lowerText.indexOf('undo on superscale successful') >= 0 ||
+                        lowerText.indexOf('rfid-undo successful') >= 0 ||
+                        lowerText.indexOf('recovery successful') >= 0;
+        if (isSuccess) return 'success';
+        return 'normal';
     }
 
     function parseBootTimeString(value) {
@@ -503,18 +529,8 @@
         };
     }
 
-    function getCurrentMessageDetails(lines, currentMessage) {
-        for (var i = lines.length - 1; i >= 0; i--) {
-            var details = parseMessageLine(lines[i]);
-            if (details && details.text === currentMessage) return details;
-        }
-        return null;
-    }
-
-    // The message that should stay displayed once playback of the temporary
-    // messages has ended: the last permanent message in the history
-    // (duration 0). Temporary messages (duration > 0) are only shown while playing.
-    function getLastPermanentMessageDetails(lines) {
+    // Get the last permanent message (duration 0) from the history
+    function getLastPermanentMessage(lines) {
         if (!lines) return null;
         for (var i = lines.length - 1; i >= 0; i--) {
             var details = parseMessageLine(lines[i]);
@@ -544,9 +560,13 @@
             if (details) {
                 var formattedTime = formatBootRelativeMessageTime(details.time, bootTimeString);
                 var durationSuffix = details.durationSeconds > 0 ? ' (' + details.durationText + 's)' : '';
-                formatted.push('<p>' + formattedTime + ' : ' + details.text + durationSuffix + '</p>');
+                var msgType = getMessageType(details.text);
+                var msgClass = msgType === 'error' ? 'message-error' : (msgType === 'success' ? 'message-success' : '');
+                formatted.push('<p' + (msgClass ? ' class="' + msgClass + '"' : '') + '>' + formattedTime + ' : ' + details.text + durationSuffix + '</p>');
             } else {
-                formatted.push('<p>' + line + '</p>');
+                var msgType = getMessageType(line);
+                var msgClass = msgType === 'error' ? 'message-error' : (msgType === 'success' ? 'message-success' : '');
+                formatted.push('<p' + (msgClass ? ' class="' + msgClass + '"' : '') + '>' + line + '</p>');
             }
         }
         if (messageReverseOrder) formatted.reverse();
@@ -563,79 +583,34 @@
             if (!el) return;
             var clearMessagesButton = geid('clearMessagesButton');
             if (clearMessagesButton) clearMessagesButton.style.display = all.trim().length ? '' : 'none';
-			
-			if(!force && cacheddata.cur==cur && cacheddata.all==all && cacheddata.state==messageToggleState && cacheddata.reverse==messageReverseOrder) return; // nothing to update
+
+            // Calculate last permanent message for caching
+            var lines = [];
+            if (all) lines = all.trim().split('\n');
+            var lastPermanent = getLastPermanentMessage(lines);
+            var displayText = lastPermanent ? lastPermanent.text : cur;
+
+			if(!force && cacheddata.cur==cur && cacheddata.all==all && cacheddata.state==messageToggleState && cacheddata.reverse==messageReverseOrder && cacheddata.displayText==displayText) return; // nothing to update
 			cacheddata.cur=cur;
 			cacheddata.all=all;
 			cacheddata.state=messageToggleState;
 			cacheddata.reverse=messageReverseOrder;
+			cacheddata.displayText=displayText;
 
             if (messageToggleState === 'currentmessage') {
-                var lines = [];
-                if (all) lines = all.trim().split('\n');
-
-                var currentDetails = getCurrentMessageDetails(lines, cur);
-                var newestLine = lines.length ? lines[lines.length - 1] : null;
-
-                // First load: ignore parsing full history, just sync the marker and showcase what's currently active.
-                if (lastAllMessagesLine === null && newestLine !== null) {
-                    lastAllMessagesLine = newestLine;
-                    if (cur) messageQueue.push({
-                        text: cur,
-                        time: currentDetails ? currentDetails.time : '',
-                        durationSeconds: currentDetails ? currentDetails.durationSeconds : 0,
-                        duration: 2000
-                    });
+                // Display the last permanent message from history
+                el.innerText = displayText || '-';
+                el.style.backgroundColor = '';
+                el.style.whiteSpace = 'normal';
+                var msgType = getMessageType(displayText);
+                if (msgType === 'error') {
+                    el.className = 'message-current message-error';
+                } else if (msgType === 'success') {
+                    el.className = 'message-current message-success';
+                } else {
+                    el.className = 'message-current';
                 }
-                // History cleared or explicitly reset
-                else if (newestLine === null) {
-                    lastAllMessagesLine = null;
-                    messageQueue = [];
-                    if (messagePlayTimeout) {
-                        clearTimeout(messagePlayTimeout);
-                        messagePlayTimeout = null;
-                    }
-                }
-                // New messages appended: queue every line after the last one we saw.
-                // (Comparing the newest line instead of the count also works once the
-                // device's allmessages cap is reached and the count stops growing.)
-                else if (newestLine !== lastAllMessagesLine) {
-                    var lastSeenIndex = lines.indexOf(lastAllMessagesLine);
-                    var firstNew = lastSeenIndex === -1 ? lines.length : lastSeenIndex + 1;
-                    for (var i = firstNew; i < lines.length; i++) {
-                        var details = parseMessageLine(lines[i]);
-                        if (details) {
-                            messageQueue.push({
-                                text: details.text,
-                                time: details.time,
-                                durationSeconds: details.durationSeconds,
-                                duration: details.durationSeconds * 1000 || 2000
-                            });
-                        }
-                    }
-                    lastAllMessagesLine = newestLine;
-                }
-
-                // Kickstart sequence queue playing if its currently idle
-                if (!messagePlayTimeout && messageQueue.length > 0) {
-                    playNextMessage();
-                }
-
-                // Normal un-queued status display  
-                if (messageQueue.length === 0 && !messagePlayTimeout) {
-                    // Rest on the last permanent message (duration 0), not on the last
-                    // played message which may be temporary. Fall back to the server's
-                    // current message if no permanent message is present in the history.
-                    var restDetails = getLastPermanentMessageDetails(lines) || currentDetails;
-                    var restText = restDetails ? restDetails.text : cur;
-                    var currentTime = restDetails ? formatBootRelativeMessageTime(restDetails.time, bootTime) : '';
-                    el.innerText = restText ? (currentTime ? currentTime + ' : ' + restText : restText) : '-';
-                    el.style.backgroundColor = '';
-                }
-
                 el.title = 'Click to show all messages';
-                el.style.whiteSpace = 'normal'; 
-                el.className = 'message-current';
             } else {
                 // Decide before swapping the content whether to keep following the
                 // newest message; skip if the user has scrolled back.
@@ -656,43 +631,9 @@
         }
     }
 
-    function playNextMessage() {
-        if (messageToggleState !== 'currentmessage' || messageQueue.length === 0) {
-            messagePlayTimeout = null; // Correctly nulls pointer, unlocking display
-            var el = geid('messageToggle');
-            if (el) {
-                el.style.backgroundColor = '';
-                // When queue finishes, force a refresh so the panel stops on the
-                // last permanent message (bypass the cache; data itself is unchanged).
-                updateMessageToggle(dataobj, true);
-            }
-            return;
-        }
-
-        var msg = messageQueue.shift();
-        var el = geid('messageToggle');
-        if (el) {
-            var bootTime = (dataobj && dataobj.config && dataobj.config.boottime) || '';
-            var formattedTime = msg.time ? formatBootRelativeMessageTime(msg.time, bootTime) : '';
-            el.innerText = formattedTime ? formattedTime + ' : ' + msg.text : msg.text;
-            el.style.backgroundColor = msg.durationSeconds > 0 ? '#fff8e1' : '';
-        }
-
-        var duration = msg.duration;
-        if (isNaN(duration) || duration < 500) duration = 2000;
-
-        messagePlayTimeout = setTimeout(playNextMessage, duration);
-    }
-
     function toggleMessageView() {
         messageToggleState = (messageToggleState === 'currentmessage') ? 'allmessages' : 'currentmessage';
         messageToggleFirstLoad = true;
-
-        if (messageToggleState !== 'currentmessage' && messagePlayTimeout) {
-            clearTimeout(messagePlayTimeout);
-            messagePlayTimeout = null;
-        }
-
         updateMessageToggle(dataobj);
     }
 

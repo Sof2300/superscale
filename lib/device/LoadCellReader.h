@@ -1,6 +1,8 @@
+#ifndef LOADCELLREADER_H_
+#define LOADCELLREADER_H_
 
 #ifdef x86BUILD
-class LoadCellReader {public:LoadCellReader(unsigned,unsigned){};void run(){};bool hasNewValue(){return false;};float getValue(){return 0;}};
+class LoadCellReader {public:LoadCellReader(unsigned,unsigned){};void run(){};bool hasNewValue(){return false;};float getValue(){return 0;};void tare(){};float getTare() const {return 0;};void setTare(float){};};
 #endif
 
 #ifdef ESP32BUILD
@@ -84,6 +86,13 @@ private:
 	}
 public:
 	void tare (){tare(median.getMedian());}
+	float getTare() const {return tareval;}
+	void setTare(float newTare){
+		tareval = newTare;
+		value = median.getMedian() - tareval;
+		newval = true;
+		Serial.println(String()+"set tare to gross value :"+newTare);
+	}
 
 	void run(){
 		if (scale.is_ready()) {
@@ -106,4 +115,4 @@ public:
 
 #endif
 
-
+#endif // LOADCELLREADER_H_

@@ -29,6 +29,7 @@ Wifi config
 - loaded from config.json : ssid/password & apssid/appassword
 - if station is failed, connect AP (if no apssid defined, use default credential "SuperScale"/"")
 - whenever mode, ssid or password is changed (e.g. through the web UI), config.json file is rewritten
+Restart, connect to the new network, use http://superscale.local (or the mdns name you've chosen), the page opens will show the ip on the top right, preferable to use as url because faster.
 
 Use cases
 - superscale for harvest

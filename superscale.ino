@@ -59,7 +59,7 @@ const int LOADCELL_SCK_PIN = 26;
 #define STARTLENGTH 200
 
 #define RFIDID_FILENAME "RFID2ID.csv"
-
+#define SAVEDTARE_KEYTEXT "savedtare"
 
 #include "lib/net/WifiMan.h"
 
@@ -73,7 +73,8 @@ const int LOADCELL_SCK_PIN = 26;
 #include <Button2.h>
 
 #include "lib/net/BasicServer.h"
-#include "lib/device/LoadCellReader.h"
+
+#include "LoadCellManager.h"
 #include "lib/device/Beeper.H"
 
 #include "DataManager.h"
@@ -91,7 +92,7 @@ const int LOADCELL_SCK_PIN = 26;
 ConfigManager configman;
 
 
-LoadCellReader loadcell(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+LoadCellManager loadcellman(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 
 DataManager dataman;
 BlockInfoManager blockinfoman = BlockInfoManager(dataman.getBlockInfoMap(), dataman.getDataMap(), dataman.getDataOrder());
@@ -132,7 +133,7 @@ void buttonsave(Button2& btn) {
 
 void buttontare(Button2& btn) {
 	Serial.println("Button tare callback");
-	loadcell.tare();
+	loadcellman.tare();
 	dataman.registerInteraction();
 }
 
@@ -318,7 +319,7 @@ void setup() {
 	Serial.println("Setup finished");
 }
 bool prevactivescreen = false, prevtimesync = false, prevfreespaceinit=false;
-long loopts = 0, freespacets=0, totarets=0, prevfreespace=0;
+long loopts = 0, freespacets=0, prevfreespace=0;
 String prevloadcellval;
 void serverloop();
 void loop() {
@@ -332,9 +333,9 @@ void loop() {
 	pricechangebutton.loop();
  //	TIMEPROFILER.printick("loop","postloops");
 
-	loadcell.run();
-	if (loadcell.hasNewValue()) {
-		long l = loadcell.getValue() * 1;
+	loadcellman.run();
+	if (loadcellman.hasNewValue()) {
+		long l = loadcellman.getValue() * 1;
 		float v = (float)l / (float)1;
 //		Serial.println(String()+"loadcell value :"+v);
 		String str = String(v);
@@ -356,11 +357,7 @@ void loop() {
 #endif
 			}
 	}
-	if ((millis()-totarets)>100 && dataman.get("totare") == "1") {	//this should be passive wait of listener on datamap : totare
-		totarets=millis();
-		dataman.set("totare", "0");
-		loadcell.tare();
-	}
+	loadcellman.checkAndHandleTare(dataman.getScaleMap());
 //	TIMEPROFILER.printick("loop","postloadcell");
 	if((millis()-freespacets)>1000) {	//this should be passive wait of listener on datamap
 		tftman->postredisplay();

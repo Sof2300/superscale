@@ -1,8 +1,15 @@
-{"data":{"date":"","id":"Z478","command":"fruit","argument":"TODAY()"},"scale":{"totare":0,"weight":0},"blockinfo":{"blockbe":"","blockdate":"21/10/26","flushes":"","flushnumber":0,"formula":"","history":"21/10/26,Z478,blockdate,21/10/26
-","id":"Z478","species":"","substrate":"","totalharvest":"","totalsubstrate":""},"multi":{},"pile":{},"config":{"IP":"192.168.1.142","boottime":"22/10/26 20:12:34","cooldown-timeout-ms":2000,"defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"11655 | Tzizika rfid-undo successful: 'adding tag 04775864D32A81 as Z491' undone | 0
-11656 | Tzizika synced with superscale ! | 6
-11656 | Ready to scan a new rfid tag ! | 6
-11671 | Ready to associate empty tag 04775864D32A81 with ID Z492, press button to save | 0
-11679 | ID tag scanned 0465EC52D62A81: ID set to Z478, press button to save | 0
-11712 | Command classic tag scanned 62F8C256: Command set to fruit ! | 0
-11713 | Ready to scan a new rfid tag ! | 6","currentmessage":"Command classic tag scanned 62F8C256: Command set to fruit !","data-version":12,"disable-generate":0,"disable-rfid-id-save":0,"fifo":0,"free-space":884736,"idlist":"Z478,Z492,Z491,Z490,Z489,Z479,Z477,Z488,Z476,Z488","multi":0,"pile":0,"save-on-set":0,"transient-tag":1},"idlist":"Z478,Z492,Z491,Z490,Z489,Z479,Z477,Z488,Z476,Z488"}
+{"data":{"date":"","id":"","command":"contaminated","argument":""},"scale":{"savedtare":"","tare":0,"weight":0},"blockinfo":{"blockbe":"","blockdate":"","flushes":"","flushnumber":"","formula":"","history":"","id":"","species":"","substrate":"","totalharvest":"","totalsubstrate":""},"multi":{},"pile":{},"config":{"IP":"192.168.1.142","boottime":"25/10/26 22:24:46","cooldown-timeout-ms":2000,"defaultcommand":"harvest","graphdays":3,"graphstart":"1/4/26","inactivitydurationsec":3600,"lastvalnames":["species","blockdate","formula"],"mdns":"superscale","mode":"ST","multivalnames":["spawn"],"ssid":"Bamboo","sumnames":["harvest","substrate"],"tags":["comment","fruit","sale","flies","spent","contaminated","compost","storage","glifada","dry-harvest","wet-harvest","overmature-harvest","moldy-harvest","larva-in-harvest","data-trash"]},"configstate":{"allmessages":"39 | Ready! scan a new rfid tag ! | 0
+130 | Command transient # tag scanned 04F2EF50D62A81: Command set to #fruit, but failed to save with ID , restored back to harvest! | 0
+130 | Ready to scan a new rfid tag ! | 6
+141 | Command classic tag scanned 04C8B55FD52A81: Command set to contaminated ! | 0
+141 | Ready to scan a new rfid tag ! | 6
+147 | Tzizika encountered an error: Command set&save @ tag scanned but failed to save | 0
+148 | Ready to scan a new rfid tag ! | 6
+157 | Tzizika encountered an error: generating ID failed | 0
+158 | Ready to scan a new rfid tag ! | 6
+165 | ERASE super-tag scanned C5A522DE: scan non empty tag to erase it | 0
+169 | Erasing tag 04C8B55FD52A81 with Command contaminated, press to confirm | 0
+182 | Tzizika synced with superscale ! | 6
+182 | Successfully erased tag 04C8B55FD52A81 ! | 0
+183 | Ready to scan a new rfid tag ! | 6
+","currentmessage":"Successfully erased tag 04C8B55FD52A81","data-version":0,"disable-generate":0,"disable-rfid-id-save":0,"fifo":0,"free-space":880640,"idlist":"","multi":0,"pile":0,"save-on-set":0,"transient-tag":1},"idlist":""}

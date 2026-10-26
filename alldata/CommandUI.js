@@ -403,7 +403,24 @@ class LineUI {
                     if (arg.key == "Enter") {
                         if (currentcommandUI) currentcommandUI.set();
                     }
-                });
+                    // Trigger date/argument validation when command changes
+                    if (this.lineui && this.lineui.valuecomps["date"] && this.lineui.valuecomps["date"].validateAndReformatDate) {
+                        this.lineui.valuecomps["date"].validateAndReformatDate("date");
+                    }
+                    if (this.lineui && this.lineui.valuecomps["argument"] && this.lineui.valuecomps["argument"].validateAndReformatDate) {
+                        this.lineui.valuecomps["argument"].validateAndReformatDate("argument");
+                    }
+                }.bind(valuecomp));
+            if (key == "command") valuecomp.addListener("onchange",
+                function (arg) {
+                    // Trigger date/argument validation when command changes via dropdown
+                    if (this.lineui && this.lineui.valuecomps["date"] && this.lineui.valuecomps["date"].validateAndReformatDate) {
+                        this.lineui.valuecomps["date"].validateAndReformatDate("date");
+                    }
+                    if (this.lineui && this.lineui.valuecomps["argument"] && this.lineui.valuecomps["argument"].validateAndReformatDate) {
+                        this.lineui.valuecomps["argument"].validateAndReformatDate("argument");
+                    }
+                }.bind(valuecomp));
 
             // Define validation and reformat function first
             if (key === "date" || key === "argument") {
@@ -419,15 +436,24 @@ class LineUI {
                     let formatted = val;
                     let commandContainsDate = currentCommand && currentCommand.toLowerCase().includes("date");
 
+                    // Check for TODAY() case-insensitive exception
+                    let isTodayKeyword = val && val.trim().toLowerCase() === "today()";
+
                     if (fieldKey === "date" || (fieldKey === "argument" && commandContainsDate)) {
                         // For date field or argument when command contains "date", enforce strict D/M/YY format
-                        const validDate = parseToDate(val);
-                        if (validDate) {
-                            // Reformat to D/M/YY
-                            formatted = formatToDMYY(validDate);
+                        // TODAY() is always valid
+                        if (isTodayKeyword) {
                             isValid = true;
+                            formatted = val.trim(); // Keep as-is, will be handled on set
                         } else {
-                            isValid = false;
+                            const validDate = parseToDate(val);
+                            if (validDate) {
+                                // Reformat to D/M/YY
+                                formatted = formatToDMYY(validDate);
+                                isValid = true;
+                            } else {
+                                isValid = false;
+                            }
                         }
                     } else {
                         // For argument field when command doesn't contain "date", keep original behavior
@@ -2178,16 +2204,47 @@ class CommandUI {
 
             // Check if date field is invalid (has red background)
             if (dateField && dateField.activebgcolor === "#ffe6e6") {
-                alert("Cannot set: date field is invalid !");
-                console.log("Cannot set: date field is invalid");
+                var dateValue = dateField.getCurrentValue() || dateField.text;
+                alert("Cannot set: date field is invalid !\nValue: " + dateValue);
+                console.log("Cannot set: date field is invalid: " + dateValue);
                 return;
             }
 
             // Check if argument field is invalid (has red background)
             if (argumentField && argumentField.activebgcolor === "#ffe6e6") {
-                alert("Cannot set: argument field is invalid !");
-                console.log("Cannot set: argument field is invalid");
+                var argValue = argumentField.getCurrentValue() || argumentField.text;
+                alert("Cannot set: argument field is invalid !\nValue: " + argValue);
+                console.log("Cannot set: argument field is invalid: " + argValue);
                 return;
+            }
+
+            // Handle TODAY() keyword and empty argument for blockdate
+            if (currentCommand.toLowerCase() === "blockdate") {
+                var argValue = argumentField.getCurrentValue() || argumentField.text;
+
+                // Function to get today's date in D/M/YY format
+                var getTodayDate = function() {
+                    var today = new Date();
+                    var day = today.getDate();
+                    var month = today.getMonth() + 1;
+                    var year = today.getFullYear().toString().slice(-2);
+                    return day + "/" + month + "/" + year;
+                };
+
+                // Handle TODAY() case-insensitive
+                if (argValue && argValue.trim().toLowerCase() === "today()") {
+                    var todayDate = getTodayDate();
+                    argumentField.setUserInput(todayDate);
+                    argumentField.remotevalue = todayDate;
+                    argumentField.updateBG();
+                }
+                // Handle empty argument - auto-fill with today's date
+                else if (!argValue || argValue.trim() === "") {
+                    var todayDate = getTodayDate();
+                    argumentField.setUserInput(todayDate);
+                    argumentField.remotevalue = todayDate;
+                    argumentField.updateBG();
+                }
             }
         }
 

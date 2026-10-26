@@ -3,7 +3,9 @@
 #ifndef x86BUILD
 #define ESP32BUILD
 #endif
+#ifndef x86BUILD
 #include <Ticker.h>
+#endif
 
 #include <ArduinoJson.h>
 #include "lib/datastruct/GenString.h"

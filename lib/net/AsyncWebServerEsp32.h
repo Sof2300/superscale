@@ -146,6 +146,10 @@ public:
 	void on(std::string path, WebRequestMethodComposite getpost, Func func){
 		server.on(path.c_str(), getpost, [this,func](AsyncWebServerRequest *request){
 			unsigned long ts=millis();
+			String url = request->url();
+			String method = request->methodToString();
+			String clientIP = request->client()->remoteIP().toString();
+			Serial.println(String()+"AsyncWebServerEsp32::on START - URL: "+url+" Method: "+method+" Client: "+clientIP+" millis:"+millis());
 			while(this->busy) delay(1);
 			this->busy=true;
 			//	Serial.println(String()+"AsyncWebServerEsp32::on processing request "+request->url()+" millis:"+millis());
@@ -153,7 +157,7 @@ public:
 			this->currentRequest=request;
 			func();
 			this->currentRequest=0;						//	        request->send(200, "text/plain", "Hello, world");
-			Serial.println(String()+"AsyncWebServerEsp32::on duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
+			Serial.println(String()+"AsyncWebServerEsp32::on END - URL: "+url+" duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
 			this->busy=false;
 		});
 	};
@@ -167,16 +171,18 @@ public:
 	template<typename Func>
 	void onRequestBody(Func func){
 			server.onRequestBody([this,func](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+			    String url = request ? request->url() : "(null)";
+			    String clientIP = request ? request->client()->remoteIP().toString() : "(null)";
 			    Serial.printf(
-			      "onRequestBody arguments:\n"
+			      "onRequestBody START - URL: %s Client: %s\n"
 			      "  request: %p\n"
-			      "  URL:     %s\n"
 			      "  data:    %p\n"
 			      "  len:     %u\n"
 			      "  index:   %u\n"
 			      "  total:   %u\n",
+			      url.c_str(),
+			      clientIP.c_str(),
 			      static_cast<void *>(request),
-			      request ? request->url().c_str() : "(null)",
 			      static_cast<void *>(data),
 			      static_cast<unsigned int>(len),
 			      static_cast<unsigned int>(index),
@@ -200,7 +206,7 @@ public:
 				this->currentRequest=request;
 				func();
 				this->currentRequest=0;						//	        request->send(200, "text/plain", "Hello, world");
-				Serial.println(String()+"AsyncWebServerEsp32::onRequestBody duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
+				Serial.println(String()+"AsyncWebServerEsp32::onRequestBody END - URL: "+url+" duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
 				this->busy=false;
 
 				this->datapacket=DataPacket();
@@ -210,6 +216,9 @@ public:
 	void onNotFound(T f) {
 		server.onNotFound([this,f](AsyncWebServerRequest *request){
 			unsigned long ts=millis();
+			String url = request->url();
+			String clientIP = request->client()->remoteIP().toString();
+			Serial.println(String()+"AsyncWebServerEsp32::onNotFound START - URL: "+url+" Client: "+clientIP+" millis:"+millis());
 			while(this->busy) delay(1);
 			this->busy=true;
 			//	Serial.println(String()+"AsyncWebServerEsp32::onnotfound processing request "+request->url()+" millis:"+millis());
@@ -217,7 +226,7 @@ public:
 			this->currentRequest=request;
 			f();
 			this->currentRequest=0;
-			Serial.println(String()+"AsyncWebServerEsp32::onnotfound duration:"+(millis()-ts)+"ms");		//	Serial.println(String()+"AsyncWebServerEsp32::onnotfound finished processing request "+request->url()+" millis:"+millis());
+			Serial.println(String()+"AsyncWebServerEsp32::onNotFound END - URL: "+url+" duration:"+(millis()-ts)+"ms");		//	Serial.println(String()+"AsyncWebServerEsp32::onnotfound finished processing request "+request->url()+" millis:"+millis());
 			this->busy=false;
 		});
 	};

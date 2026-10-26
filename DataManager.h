@@ -1,7 +1,9 @@
 #ifndef DATAMANAGER_H_
 #define DATAMANAGER_H_
 
+#ifndef x86BUILD
 #include <Ticker.h>
+#endif
 
 #define DATAFILENAME "/data.txt"
 #define HEADERFILENAME "/headers.txt"
@@ -54,6 +56,8 @@
 #define TRANSIENTTAG_KEYTEXT "transient-tag"
 #define IDLIST_KEYTEXT "idlist"
 #define IDLIST_MAX 10
+
+//#define SAVEDTARE_KEYTEXT "savedtare"
 
 #define LOWERSCALEPACK "command"
 
@@ -190,7 +194,7 @@ public:
 	void initRemoteSync(const String &filename){ remoteSyncServer.init(filename); }
 
 	std::vector<GenString> getUrlNames(){
-		std::vector<GenString>vect={"/set","/setBypass","/save","/tare", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/setBypass","/undo","/generateID","/message","/clearmessages","/get","/generateIDGet"},
+		std::vector<GenString>vect={"/set","/setBypass","/save","/tare","/tare/save","/tare/load", "boottime","/json","/clear","/clearAll","/deleteDataFile","/filewrite","/undo","/generateID","/message","/clearmessages","/get","/generateIDGet"},
 				v2=multiman.getUrlNames(), v3=pileman.getUrlNames(), v4=RemoteSyncServer::getUrlNames();
 		for(GenString s:v2) vect.push_back(s);
 		for(GenString s:v3) vect.push_back(s);
@@ -255,7 +259,8 @@ public:
 		}
 
 		scalemap.set("weight","0");
-		scalemap.set("totare","0");
+		scalemap.set("tare","0");
+		scalemap.set(SAVEDTARE_KEYTEXT,"");
 
 		configstate.set(CURRENTMESSAGE_TEXT, "");
 		configstate.set(ALLMESSAGES_TEXT, "");
@@ -462,9 +467,48 @@ public:
 		}
 		if(ename==String("/tare")) {registerInteraction();
 			beepnotify();
-			scalemap.update("totare","1");
-			reply(1,se);
-			return true;}// not a supergood way to communicate with scale
+			String command = "tare";
+			if(se->exists("command")) command = se->get("command");
+			else if(se->exists("argument")) command = se->get("argument");
+			else if(se->exists("tare")) command = se->get("tare");
+			scalemap.update("tare", command);
+			reply(true,se);
+			return true;
+		}
+
+		if(ename==String("/tare/save")) {
+			registerInteraction();
+			beepnotify();
+			if(se->exists("val")) {
+				scalemap.update(SAVEDTARE_KEYTEXT, se->get("val"));
+			} else if(se->exists("tare")) {
+				scalemap.update(SAVEDTARE_KEYTEXT, se->get("tare"));
+			} else if(se->exists("argument")) {
+				scalemap.update(SAVEDTARE_KEYTEXT, se->get("argument"));
+			} else {
+				scalemap.update("tare", "savetare");
+			}
+			bool nohtml = se->get(NOHTML_TEXT)=="1";
+			if(nohtml) {
+				String response = scalemap.get(SAVEDTARE_KEYTEXT);
+				se->updateValue("response", response.length() > 0 ? response.c_str() : "OK");
+				se->updateValue("type","text/plain");
+			} else reply(true, se, nohtml);
+			return true;
+		}
+
+		if(ename==String("/tare/load")) {
+			registerInteraction();
+			beepnotify();
+			scalemap.update("tare", "loadtare");
+			bool nohtml = se->get(NOHTML_TEXT)=="1";
+			if(nohtml) {
+				String savedTare = scalemap.get(SAVEDTARE_KEYTEXT);
+				se->updateValue("response", savedTare.c_str());
+				se->updateValue("type","text/plain");
+			} else reply(true, se, nohtml);
+			return true;
+		}
 
 		if(ename=="boottime"){
 			beepnotify();

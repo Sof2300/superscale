@@ -52,12 +52,14 @@ Refer to `data/index.html` and the JS files in `data/` for the main client imple
 ## HTTP API / Endpoints
 The device exposes a number of endpoints through the built-in `BasicServer`. High-level endpoints include:
 
-- Data & control: `/set`, `/setBypass`, `/save`, `/tare`, `/undo`, `/generateID`, `/json`, `/clear`, `/clearAll`, `/message`, `/clearmessages`, `/filewrite`, `/deleteDataFile`
+- Data & control: `/set`, `/setBypass`, `/save`, `/tare`, `/tare/save`, `/tare/load`, `/undo`, `/generateID`, `/json`, `/clear`, `/clearAll`, `/message`, `/clearmessages`, `/filewrite`, `/deleteDataFile`
 - Multi/pile: endpoints provided by `MultiManager` and `PileManager` (see `DataManager::getUrlNames`).
 - Prices / screen controls (if TFT enabled): `/price/clear`, `/price/add`, `/price/set`, `/price/setsum`, `/price/json`, `/price/select`, `/price/screen`.
-- Remote sync (file synchronization endpoints by `RemoteSyncServer`): `/sync_check`, `/sync_push_delta`, `/sync_download_delta`, `/sync_download`, `/sync_patch`.
+- Remote sync (file synchronization endpoints by `RemoteSyncServer`): `/sync_check`, `/sync_download`, `/sync_patch`.
 
 Clients (browser UI or scripts) interact with these endpoints to set fields, trigger saves, request JSON dumps, and synchronize the main data file.
+
+Tare operations are queued through the scale model's `totare` value. `/tare` defaults to auto-tare; pass `command=tareto:256` to set an explicit gross tare, or use `/tare/load` to apply `savedtare`. `/tare/save` stores the active tare value. These actions are also available by setting `totare` through `/set`.
 
 ## Data files & layout
 - Main logged data: `/data.txt` (CSV-like append-only log)

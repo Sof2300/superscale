@@ -157,7 +157,9 @@ public:
 			this->currentRequest=request;
 			func();
 			this->currentRequest=0;						//	        request->send(200, "text/plain", "Hello, world");
+			Serial.flush(); // to test if we can print the next line full when it loops-bugs
 			Serial.println(String()+"AsyncWebServerEsp32::on END - URL: "+url+" duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
+			Serial.flush();
 			this->busy=false;
 		});
 	};
@@ -206,7 +208,8 @@ public:
 				this->currentRequest=request;
 				func();
 				this->currentRequest=0;						//	        request->send(200, "text/plain", "Hello, world");
-				Serial.println(String()+"AsyncWebServerEsp32::onRequestBody END - URL: "+url+" duration:"+(millis()-ts)+"ms");//		Serial.println(String()+"AsyncWebServerEsp32::on finished processing request "+request->url()+" millis:"+millis());
+				Serial.println(String()+"AsyncWebServerEsp32::onRequestBody : "+url+" duration:"+(millis()-ts)+"ms");
+				Serial.flush();
 				this->busy=false;
 
 				this->datapacket=DataPacket();

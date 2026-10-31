@@ -58,21 +58,69 @@
             background: #d0d0d0;
         }
 
-        .table-container { margin: 5px 0; table-layout: fixed; }
-        #dataTable { width: 100%; font-size: 0.85em; }
+        .table-container { margin: 5px 0; }
+        /* The table hugs its data instead of stretching to the full page width. */
+        #dataTable { width: auto; font-size: 0.85em; }
 
         #dataTable th, #dataTable td {
             border: 1px solid #ddd; padding: 3px 6px;
             text-align: left; line-height: 1.2;
-            white-space: nowrap; box-sizing: border-box;
+            box-sizing: border-box;
         }
 
-        #dataTable th { background-color: #f4f4f4; user-select: none; position: sticky; top: 0; padding-top: 6px; padding-bottom: 6px; z-index: 2; }
+        /* Data cells stay on one line, so the data alone decides how wide a column is. */
+        #dataTable td { white-space: nowrap; }
+        /* A long header wraps on a word boundary instead of forcing its column to be wide. */
+        #dataTable th { background-color: #f4f4f4; user-select: none; position: sticky; top: 0; padding-top: 6px; padding-bottom: 6px; z-index: 2; white-space: normal; overflow-wrap: anywhere; }
         #dataTable th:hover { background-color: #e0e0e0; }
-        #dataTable tr:nth-child(even) { background-color: #f9f9f9; }
+        /* Alternating rows: only a hint of a shade on every second row. The tint is a background
+           image rather than a background colour, so it also shows up on rows whose cells already
+           carry a per-species colour. */
+        #dataTable tbody tr:nth-child(even) > td {
+            background-image: linear-gradient(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.1));
+        }
+
+        /* Header display modes (see the "Headers" control):
+           - original: the raw stored key, left exactly as is on a single line, no wrapping.
+           - spaced:   "total harvest" style words, laid out vertically as upright letters stacked
+                       on top of each other (no rotation of the glyphs).
+           - rotated:  the same words, turned -90deg so they read bottom to top. */
+        #dataTable.headers-original th {
+            white-space: nowrap;
+            overflow-wrap: normal;
+        }
+        /* "spaced" mode stacks the letters one per line. The vertical writing mode sits on an
+           inline-block wrapper, not on the table cell: a cell laid out in a vertical writing mode
+           does not grow to fit its content, so it used to spill out over the table. As a plain
+           inline-block the cell sizes normally and the header row ends up as tall as the tallest
+           header. */
+        #dataTable th .hdr-stacked {
+            display: inline-block;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            white-space: nowrap;
+            line-height: 1.15;
+        }
+        /* Start the stacked header at the top of the cell instead of centring it in the tall row. */
+        #dataTable.headers-spaced th { vertical-align: top; }
+        #dataTable.headers-rotated th {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            white-space: nowrap;
+            overflow-wrap: normal;
+            height: 130px;
+        }
 
         thead tr.avgRow th{ position:sticky; top:35px; background:#fff8d5; font-weight:bold; z-index:1; border-top:2px solid #999; }
-        #dataTable tfoot th { position: sticky; top: 35px; background:#fff8d5; font-weight:bold; z-index:3; border-top:2px solid #999; }
+        #dataTable tfoot th { position: sticky; top: var(--header-h, 35px); background:#fff8d5; font-weight:bold; z-index:3; border-top:2px solid #999; }
+
+        /* DataTables floats the info, the entries-per-page control and the pager on one line, which
+           leaves them on different baselines. Lay that row out as a flex row so they share one
+           alignment: info on the left, entries control next, pager on the right. */
+        .dataTables_wrapper .top { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .dataTables_wrapper .top .dataTables_info,
+        .dataTables_wrapper .top .dataTables_length { float: none; padding: 0; margin: 0; }
+        .dataTables_wrapper .top .dataTables_paginate { float: none; margin: 0 0 0 auto; padding: 0; }
 
         .date-filter-controls { display: none; }
 
@@ -357,7 +405,7 @@
             }
 
             let dtHeaders = headers.map((h, colIndex) => ({
-                title: h, defaultContent: "",
+                title: prettyHeader(h), defaultContent: "",
                 visible: !isColumnHidden(activeHiddenColumns, h),
                 className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
                 render: function (data, type, row) {
@@ -395,12 +443,20 @@
                 columns: dtHeaders,
                 footer: true,
                 deferRender: true,
+                // Let the content decide column widths so the table hugs its data instead of
+                // stretching every column to fill the page.
+                autoWidth: false,
                 pageLength: 50,
                 dom: '<"top"ilp>rt<"bottom"p><"clear">',
                 order: [],
                 scrollX: false,
                 footerCallback: function () { updateAverageRow(this.api(), "dataTable", window.tableData[0]); },
-                drawCallback: function () { updateAverageRow(this.api(), "dataTable", window.tableData[0]); },
+                drawCallback: function () {
+                    updateAverageRow(this.api(), "dataTable", window.tableData[0]);
+                    // Keep the pinned totals row right below the header, whose height depends on
+                    // how many lines the (variable-width) headers wrapped onto.
+                    syncPinnedRowOffset();
+                },
                 createdRow: function(row, data, dataIndex) {
                     let speciesIndex = headers.indexOf("species");
                     let color = getSpeciesColor(data[speciesIndex]);
@@ -410,6 +466,40 @@
 
             setTimeout(() => { if (dataTableInstance) dataTableInstance.columns.adjust(); }, 50);
             setTimeout(() => { if (dataTableInstance) { dataTableInstance.draw(false); updateAverageRow(dataTableInstance, "dataTable", window.tableData[0]); } }, 500);
+
+            applyHeaderMode();
+        }
+
+        // The pinned totals row sticks just below the header; its offset must follow the header height.
+        function syncPinnedRowOffset() {
+            let headerH = $("#dataTable thead").outerHeight();
+            if (headerH) $("#dataTable")[0].style.setProperty("--header-h", headerH + "px");
+        }
+
+        // Header display mode (purely visual):
+        //   "original" - the raw stored key, unchanged on one line, e.g. "totalharvest"
+        //   "spaced"   - readable words, e.g. "total harvest", stacked vertically as upright letters
+        //   "rotated"  - the same words, turned -90deg
+        function applyHeaderMode() {
+            let mode = $("#headerMode").val() || "spaced";
+            let headers = window.tableData[0] || [];
+            $("#dataTable thead tr").first().children("th").each(function (colIdx) {
+                let raw = headers[colIdx];
+                if (raw === undefined) return;
+                let text = mode === "original" ? raw : prettyHeader(raw);
+                if (mode === "spaced") {
+                    // Wrap the text so the cell can size itself to the stacked letters.
+                    $(this).empty().append($("<span>").addClass("hdr-stacked").text(text));
+                } else {
+                    $(this).text(text);
+                }
+            });
+            let $table = $("#dataTable");
+            $table.toggleClass("headers-original", mode === "original");
+            $table.toggleClass("headers-spaced", mode === "spaced");
+            $table.toggleClass("headers-rotated", mode === "rotated");
+            if (dataTableInstance) dataTableInstance.columns.adjust();
+            syncPinnedRowOffset();
         }
 
         // 3. Bind events & Save Feature
@@ -418,6 +508,14 @@
             $('#dateFilterRelative').on('change', onDateFilterModeChange);
             $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterRelative, #dateFilterColumn, #dateFrom, #dateTo, #dateFromDays, #dateToDays').on('input change', function () {
                 if (dataTableInstance) dataTableInstance.draw();
+            });
+
+            // Header display mode: remembered per browser since it is only a viewing preference.
+            let savedHeaderMode = localStorage.getItem('blockVizHeaderMode');
+            if (savedHeaderMode) $("#headerMode").val(savedHeaderMode);
+            $('#headerMode').on('change', function () {
+                localStorage.setItem('blockVizHeaderMode', this.value);
+                applyHeaderMode();
             });
 
             // Save into this browser only (private to this device).
@@ -520,9 +618,16 @@
             <summary>Columns &#9662;</summary>
             <div class="col-chooser-panel" id="colChooserPanel"></div>
         </details>
+        <label>Headers:
+            <select id="headerMode">
+                <option value="original">Original</option>
+                <option value="spaced" selected>Spaced</option>
+                <option value="rotated">Rotated -90&deg;</option>
+            </select>
+        </label>
     </div>
 
-    <table id="dataTable" class="display" style="width:100%">
+    <table id="dataTable" class="display">
         <tfoot><tr></tr></tfoot>
     </table>
 </div>

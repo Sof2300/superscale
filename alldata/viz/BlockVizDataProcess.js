@@ -690,6 +690,54 @@ function describeRequest(req) {
         return parts.join(" &nbsp;•&nbsp; ");
 }
 
+// --- Column headers ---
+// Column keys carry no spaces (e.g. "totalharvest", "harvest1date"). Give the table a readable
+// header with spaces, so a long header can wrap on a word boundary instead of forcing a wide column.
+var headerLabels = {
+        "blockdate": "block date",
+        "spawncode": "spawn code",
+        "totalsubstrate": "total substrate",
+        "totalharvest": "total harvest",
+        "harvestcount": "harvest count",
+        "lastharvest": "last harvest",
+        "lastharvestdate": "last harvest date"
+};
+function prettyHeader(header) {
+        if (headerLabels[header]) return headerLabels[header];
+        let m = /^harvest(\d+)(date)?$/.exec(header);
+        if (m) return "harvest " + m[1] + (m[2] ? " date" : "");
+        return header;
+}
+
+// Apply a header display mode to one table, so every table on a page can be set on its own:
+//   "original" - the raw stored key, left as is on a single line, no wrapping
+//   "spaced"   - the readable words, stacked vertically as upright letters (no rotation)
+//   "rotated"  - the readable words, turned -90deg so they read bottom to top
+function setHeaderMode($table, headers, mode) {
+        mode = mode || "spaced";
+        $table.find("thead tr").first().children("th").each(function (colIdx) {
+                let raw = headers[colIdx];
+                if (raw === undefined) return;
+                let text = (mode === "original") ? raw : prettyHeader(raw);
+                if (mode === "spaced") {
+                        // Wrapped so the cell sizes itself to the stacked letters: a cell laid out in
+                        // a vertical writing mode would not grow and would spill over the table.
+                        $(this).empty().append($("<span>").addClass("hdr-stacked").text(text));
+                } else {
+                        $(this).text(text);
+                }
+        });
+        $table.toggleClass("headers-original", mode === "original");
+        $table.toggleClass("headers-spaced", mode === "spaced");
+        $table.toggleClass("headers-rotated", mode === "rotated");
+}
+
+// The header row height varies with the header mode, so the pinned totals row needs its offset.
+function syncHeaderHeight($table) {
+        let h = $table.find("thead").outerHeight();
+        if (h) $table[0].style.setProperty("--header-h", h + "px");
+}
+
 // The per-harvest breakdown (harvest1/harvest1date, ...) plus the harvest summary columns,
 // i.e. everything harvest related except "totalharvest", so the table can be reduced to totals.
 function isHarvestDetailColumn(header) {

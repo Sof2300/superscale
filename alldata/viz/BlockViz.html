@@ -87,9 +87,24 @@
         .data-content-title { font-size: 1em; font-weight: bold; cursor: pointer; margin: 10px 0; }
         #dataTable td.boldColumn { font-weight: bold; }
 
-        .save-panel-links { display: flex; gap: 15px; justify-content: flex-end; margin-bottom: 10px; }
-        .save-panel-links a { font-weight: bold; color: #0056b3; text-decoration: none; }
-        .save-panel-links a:hover { text-decoration: underline; }
+        /* Unified navigation: page title on the left, one identical link per page on the right. */
+        .page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .page-header h1 { margin: 0; font-size: 1.5em; color: #0056b3; }
+        .viz-nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .viz-nav a, .viz-nav span.active { padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        /* One cheerful colour per view. The current page wears the full colour, the others a light tint. */
+        .viz-nav a.nav-block   { background: #d8f3e3; color: #17794a; }
+        .viz-nav a.nav-table   { background: #fdecd1; color: #a4670b; }
+        .viz-nav a.nav-graphic { background: #ece0fb; color: #6b2fb0; }
+        .viz-nav a.nav-block:hover   { background: #2eb872; color: #fff; }
+        .viz-nav a.nav-table:hover   { background: #f2a33c; color: #fff; }
+        .viz-nav a.nav-graphic:hover { background: #9b51e0; color: #fff; }
+        .viz-nav span.active.nav-block   { background: #2eb872; color: #fff; }
+        .viz-nav span.active.nav-table   { background: #f2a33c; color: #fff; }
+        .viz-nav span.active.nav-graphic { background: #9b51e0; color: #fff; }
+        /* The SuperScale link stays a plain link, with no button background. */
+        .viz-nav a.home, .viz-nav a.home:hover { background: none; color: #0056b3; }
+        .viz-nav a.home:hover { color: #004494; text-decoration: underline; }
 
         /* --- HIDEABLE COLUMNS --- */
         .col-chooser { position: relative; display: inline-block; }
@@ -469,13 +484,14 @@
 </head>
 
 <body>
-<h1 id="title">SuperScale - Block Explore</h1>
-
-<!-- NAVIGATION LINKS -->
-<div class="save-panel-links" style="justify-content: flex-end; margin-bottom: 10px;">
-    <a href="SavedRequests.html">🔲 Table View &rarr;</a>
-    <a href="SavedRequestsGraphic.html">🎨 Graphic View &rarr;</a>
-    <a href="../index.html">🏡 SuperScale page &rarr;</a>
+<div class="page-header">
+    <h1>Block Explore</h1>
+    <nav class="viz-nav">
+        <a href="../index.html" class="home">🏡 SuperScale</a>
+        <span class="active nav-block">🧱 Block Explore</span>
+        <a href="TableView.html" class="nav-table">🔲 Table View</a>
+        <a href="SavedRequestsGraphic.html" class="nav-graphic">🎨 Graphic View</a>
+    </nav>
 </div>
 
 <div class="table-container">

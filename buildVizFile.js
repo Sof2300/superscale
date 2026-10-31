@@ -12,7 +12,7 @@ const htmlFileName = process.argv[2];
 
 if (!htmlFileName) {
     console.error('Usage: node buildVizFile.js <htmlFileName>');
-    console.error('Example: node buildVizFile.js SavedRequests.html');
+    console.error('Example: node buildVizFile.js TableView.html');
     process.exit(1);
 }
 

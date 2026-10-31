@@ -57,7 +57,7 @@ cls
 where node >nul 2>nul
 if errorlevel 1 goto nonode
 echo Running: npm run build-all
-echo (buildUI.js  then  build-viz: BlockViz, SavedRequests, SavedRequestsGraphic)
+echo (buildUI.js  then  build-viz: BlockViz, TableView, SavedRequestsGraphic)
 echo.
 call npm run build-all
 echo.
@@ -85,7 +85,7 @@ cls
 where node >nul 2>nul
 if errorlevel 1 goto nonode
 echo Running: npm run build-viz
-echo (BlockViz.html, SavedRequests.html, SavedRequestsGraphic.html  -^>  data\viz\*.gz)
+echo (BlockViz.html, TableView.html, SavedRequestsGraphic.html  -^>  data\viz\*.gz)
 echo.
 call npm run build-viz
 echo.
@@ -101,7 +101,7 @@ set "vizfile="
 echo   Build ONE VIZ page   (source: alldata\viz\   output: data\viz\ )
 echo.
 echo     [1] BlockViz.html
-echo     [2] SavedRequests.html
+echo     [2] TableView.html
 echo     [3] SavedRequestsGraphic.html
 echo     [c] Other file name in alldata\viz\
 echo     [b] Back to menu
@@ -110,7 +110,7 @@ set /p "v=Choose: "
 
 if /i "%v%"=="b" goto menu
 if /i "%v%"=="1" set "vizfile=BlockViz.html"
-if /i "%v%"=="2" set "vizfile=SavedRequests.html"
+if /i "%v%"=="2" set "vizfile=TableView.html"
 if /i "%v%"=="3" set "vizfile=SavedRequestsGraphic.html"
 if /i "%v%"=="c" set /p "vizfile=HTML file name (e.g. MyPage.html): "
 

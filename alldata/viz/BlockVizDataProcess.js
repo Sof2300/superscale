@@ -902,6 +902,34 @@ function deleteSavedRequest(req, callback) {
         else { deleteLocalSavedRequest(req.name); if (callback) callback("Deleted from this browser.", { status: 200 }); }
 }
 
+// Update part of a request (entered page size, hidden columns...) in this browser's store.
+function patchLocalSavedRequest(name, patch) {
+        let saved = loadLocalSavedRequests();
+        let req = saved.find(r => r.name === name);
+        if (!req) return false;
+        Object.assign(req, patch);
+        localStorage.setItem("savedRequests", JSON.stringify(saved));
+        return true;
+}
+
+// Same for a request kept on the scale: read the shared file back, patch the request, write the
+// whole list out again so the other requests survive.
+function patchServerSavedRequest(name, patch, callback) {
+        loadServerSavedRequests(function (list) {
+                let req = list.find(r => r.name === name);
+                if (!req) { if (callback) callback(null, { status: 404 }); return; }
+                Object.assign(req, patch);
+                writeServerSavedRequests(list, callback);
+        });
+}
+
+// Save one setting of a request to whichever store it lives in. The callback only reports on the
+// scale write; browser updates are immediate.
+function patchSavedRequest(req, patch, callback) {
+        if (req.__server) patchServerSavedRequest(req.name, patch, callback);
+        else { patchLocalSavedRequest(req.name, patch); if (callback) callback("Saved in this browser.", { status: 200 }); }
+}
+
 // Close an open chooser when clicking anywhere outside it.
 $(document).on("click", function (e) {
         $("details.col-chooser[open]").each(function () {

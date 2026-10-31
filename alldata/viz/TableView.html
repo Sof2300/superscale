@@ -11,16 +11,31 @@
     <script src="BlockVizDataProcess.js"></script>
     <!-- <script src="BlockVizCommon.js"></script>-->
 
-    <title>TableView</title>
+    <title>Table View</title>
 
     <style>
         body { font-family: FreeSans, Arimo, 'Droid Sans', Helvetica, Arial, sans-serif; padding: 20px; }
-        .page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
-        .page-header a { background: #666; color: white; padding: 8px 15px; text-decoration: none; border-radius: 4px; }
-        .page-header a:hover { background: #444; }
+        /* Unified navigation: page title on the left, one identical link per page on the right. */
+        .page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .page-header h1 { margin: 0; font-size: 1.5em; color: #0056b3; }
+        .viz-nav { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .viz-nav a, .viz-nav span.active { padding: 8px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        /* One cheerful colour per view. The current page wears the full colour, the others a light tint. */
+        .viz-nav a.nav-block   { background: #d8f3e3; color: #17794a; }
+        .viz-nav a.nav-table   { background: #fdecd1; color: #a4670b; }
+        .viz-nav a.nav-graphic { background: #ece0fb; color: #6b2fb0; }
+        .viz-nav a.nav-block:hover   { background: #2eb872; color: #fff; }
+        .viz-nav a.nav-table:hover   { background: #f2a33c; color: #fff; }
+        .viz-nav a.nav-graphic:hover { background: #9b51e0; color: #fff; }
+        .viz-nav span.active.nav-block   { background: #2eb872; color: #fff; }
+        .viz-nav span.active.nav-table   { background: #f2a33c; color: #fff; }
+        .viz-nav span.active.nav-graphic { background: #9b51e0; color: #fff; }
+        /* The SuperScale link stays a plain link, with no button background. */
+        .viz-nav a.home, .viz-nav a.home:hover { background: none; color: #0056b3; }
+        .viz-nav a.home:hover { color: #004494; text-decoration: underline; }
 
-        .request-block { margin-bottom: 50px; background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .request-title-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+        .request-block { margin-bottom: 24px; background: white; border: 1px solid #ddd; padding: 12px 16px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .request-title-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
         /* Name and its detailed request description, left aligned on one line. */
         .request-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .request-title-bar h2 { margin: 0; color: #0056b3; }
@@ -42,6 +57,18 @@
         .move-btn { padding: 2px 7px; background: #e0e0e0; color: #555; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; line-height: 1; }
         .move-btn:hover:not(:disabled) { background: #d0d0d0; }
         .move-btn:disabled { opacity: .35; cursor: default; }
+
+        /* Entries per page: a plain input with a datalist of presets, kept where DataTables renders it. */
+        .dataTables_length input.page-length-input { width: 5em; padding: 3px 6px; border: 1px solid #bbb; border-radius: 4px; font-size: 1em; }
+
+        /* DataTables floats the info text, the entries-per-page control and the pager on one line,
+           which leaves them on different baselines. Lay that row out as a flex row instead so the
+           info sits on the left, the pager on the right, and everything is vertically centred. */
+        .dataTables_wrapper .top { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .dataTables_wrapper .top .dataTables_info,
+        .dataTables_wrapper .top .dataTables_length { float: none; padding: 0; margin: 0; }
+        .dataTables_wrapper .top .dataTables_paginate { float: none; margin: 0 0 0 auto; padding: 0; }
+        .dataTables_wrapper .top .page-length-input { vertical-align: middle; }
 
         /* Dense Table Styles */
         table.dataTable { font-size: 0.85em; width: 100%; border-collapse: collapse; }
@@ -310,6 +337,32 @@
                     </div>`;
         }
 
+        // The stock "entries per page" control is a <select>. Swap it in place for a text input
+        // backed by a <datalist> of the usual presets, so a value can be picked from the list or
+        // typed directly. Changing it goes through api.page.len(), which fires "length.dt" and so
+        // reuses the per-request persistence handler.
+        function buildPageLengthInput($table, tableId, api) {
+            let $select = $table.closest('.dataTables_wrapper').find('div.dataTables_length select').first();
+            if (!$select.length) return;
+
+            let listId = tableId + '_lenList';
+            let $datalist = $('<datalist>').attr('id', listId);
+            [10, 25, 50, 100].forEach(function (n) { $datalist.append($('<option>').attr('value', n)); });
+
+            let $input = $('<input type="number" min="1" step="1" class="page-length-input">')
+                .attr('list', listId)
+                .val(api.page.len());
+
+            $select.replaceWith($input);
+            $input.after($datalist);
+
+            $input.on('change', function () {
+                let n = parseInt($input.val(), 10);
+                if (!n || n < 1) { $input.val(api.page.len()); return; }
+                api.page.len(n).draw(false);
+            });
+        }
+
         function renderTablesUI(savedRequests, dtHeaders) {
             // Redrawing the panels replaces them, so dispose the DataTables that are going away.
             $('#requestsContainer table').each(function () {
@@ -367,8 +420,9 @@
                     columns: dtHeaders,
                     footer: true,
                     deferRender: true,
-                    pageLength: 10,
-                    dom: '<"top"ilp>rt<"bottom"p><"clear">',
+                    pageLength: req.pageLength || 10,
+                    // Pager is kept above the table only, so no "bottom" paginate block.
+                    dom: '<"top"ilp>rt<"clear">',
                     order: [],
                     scrollX: false,
                     footerCallback: function () {
@@ -391,6 +445,24 @@
                 });
 
                 let $table = $('#' + tableId);
+
+                // Remember the "entries per page" choice per request: a browser request keeps it in
+                // this browser, a scale request is written back to the shared file.
+                let pageLength = req.pageLength || 10;
+                $table.on("length.dt", function (e, settings, len) {
+                    if (len === pageLength) return;
+                    pageLength = len;
+                    req.pageLength = len;
+                    patchSavedRequest(req, { pageLength: len }, function (text, xhttp) {
+                        if (req.__server && (!xhttp || xhttp.status !== 200)) {
+                            alert("Could not save the page size on the scale.\n" + (text || ""));
+                        }
+                    });
+                });
+
+                // Replace the stock drop-down with an input + datalist, in the same spot.
+                buildPageLengthInput($table, tableId, $table.DataTable());
+
                 // Both kinds honour the columns they were saved with, but only the browser's
                 // requests can be changed from here.
                 applyColumnVisibility(parsedTableData[0], hiddenColumns, $table);
@@ -414,10 +486,12 @@
 
 <div class="page-header">
     <h1>Table View</h1>
-    <div style="display: flex; gap: 10px;">
-        <a href="SavedRequestsGraphic.html" style="background: #0056b3;">🎨 Graphic View</a>
-        <a href="BlockViz.html">← Back to Main View</a>
-    </div>
+    <nav class="viz-nav">
+        <a href="../index.html" class="home">🏡 SuperScale</a>
+        <a href="BlockViz.html" class="nav-block">🧱 Block Explore</a>
+        <span class="active nav-table">🔲 Table View</span>
+        <a href="SavedRequestsGraphic.html" class="nav-graphic">🎨 Graphic View</a>
+    </nav>
 </div>
 
 <div id="requestsContainer">

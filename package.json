@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build-viz": "node buildVizFile.js BlockViz.html && node buildVizFile.js SavedRequests.html && node buildVizFile.js SavedRequestsGraphic.html",
+    "build-viz": "node buildVizFile.js BlockViz.html && node buildVizFile.js TableView.html && node buildVizFile.js SavedRequestsGraphic.html",
     "build-all": "node buildUI.js && npm run build-viz"
   },
   "repository": {

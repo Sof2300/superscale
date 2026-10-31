@@ -501,6 +501,14 @@ function updateAverageRow(api, tableId, headers) {
         });
 }
 
+// When matching a search term against a tag column name, only a real value counts as
+// "the tag is set": empty cells, "0" and "false" all mean the tag is absent.
+function tagCellIsSet(value) {
+        if (value === undefined || value === null) return false;
+        let s = String(value).trim().toLowerCase();
+        return s !== "" && s !== "0" && s !== "false";
+}
+
 function applyRowFilter(rowData, headers, req) {
         if (!req) return true;
 
@@ -559,8 +567,7 @@ function applyRowFilter(rowData, headers, req) {
                                         for (let i = 0; i < headers.length; i++) {
                                                 let header = headers[i].toLowerCase();
                                                 if (header.includes(check.term)) {
-                                                        let cellValue = rowData[i];
-                                                        if (cellValue !== undefined && cellValue !== null && String(cellValue).trim() !== "") {
+                                                        if (tagCellIsSet(rowData[i])) {
                                                                 containsTerm = true;
                                                                 break;
                                                         }
@@ -788,6 +795,111 @@ function applyColumnVisibility(headers, hidden, $tables) {
                 headers.forEach((h, i) => api.column(i).visible(!isColumnHidden(hidden, h), false));
                 api.columns.adjust().draw(false);
         });
+}
+
+// --- Saved requests (browser + scale) ---
+// A request is kept either in this browser (localStorage, private) or on the scale itself (the
+// shared file written through /filewrite). Both stores hold the same JSON array of requests, so a
+// page reads the two, tags each request with where it came from, and shows them as one list.
+
+var SAVED_REQUESTS_FILE = "savedRequests.json"; // relative URL of the shared file on the scale
+var SAVED_REQUESTS_PATH = "/viz/savedRequests.json"; // its device path, used when writing back
+var SAVED_REQUESTS_ORDER_KEY = "savedRequestOrder"; // the order chosen by the user, browser side
+
+function parseSavedRequests(text) {
+        try {
+                let list = JSON.parse(text);
+                return Array.isArray(list) ? list : [];
+        } catch (e) { return []; }
+}
+
+function loadLocalSavedRequests() {
+        return parseSavedRequests(localStorage.getItem("savedRequests") || "[]");
+}
+
+// Read the shared list from the scale. The callback always runs, with [] when the file is not
+// there yet or cannot be read.
+function loadServerSavedRequests(callback) {
+        let xhr = new XMLHttpRequest();
+        xhr.addEventListener("load", function () { callback(this.status === 200 ? parseSavedRequests(this.responseText) : []); });
+        xhr.addEventListener("error", function () { callback([]); });
+        xhr.open("GET", SAVED_REQUESTS_FILE);
+        xhr.setRequestHeader("x-Date", Math.floor(Date.now() / 1000));
+        xhr.send();
+}
+
+// A stable identity for a request: where it lives plus its name (names can repeat across stores).
+function requestKey(req) { return (req.__server ? "server" : "local") + "|" + req.name; }
+
+function savedRequestsOrder() {
+        return parseSavedRequests(localStorage.getItem(SAVED_REQUESTS_ORDER_KEY) || "[]");
+}
+
+// The requests the user moved keep their chosen order; the others fall back to browser first then
+// scale, each by name. Requests the order does not know about yet stay at the end, in that order.
+function applySavedRequestsOrder(list) {
+        let pos = new Map();
+        savedRequestsOrder().forEach((k, i) => pos.set(k, i));
+        return list.slice()
+                .sort((a, b) => (a.__server - b.__server) || String(a.name).localeCompare(String(b.name)))
+                .sort((a, b) => {
+                        let pa = pos.has(requestKey(a)) ? pos.get(requestKey(a)) : Infinity;
+                        let pb = pos.has(requestKey(b)) ? pos.get(requestKey(b)) : Infinity;
+                        return pa - pb;
+                });
+}
+
+function saveSavedRequestsOrder(list) {
+        localStorage.setItem(SAVED_REQUESTS_ORDER_KEY, JSON.stringify(list.map(requestKey)));
+}
+
+// Move one request up or down, remembering the new order. False when it is already at that end.
+function moveSavedRequest(list, key, delta) {
+        let i = list.findIndex(r => requestKey(r) === key);
+        let j = i + delta;
+        if (i < 0 || j < 0 || j >= list.length) return false;
+        let tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+        saveSavedRequestsOrder(list);
+        return true;
+}
+
+// Read both stores as one list (browser requests first, then the scale's), in the saved order.
+function loadAllSavedRequests(callback) {
+        let local = loadLocalSavedRequests().map(r => Object.assign({}, r, { __server: false }));
+        loadServerSavedRequests(function (server) {
+                let all = local.concat(server.map(r => Object.assign({}, r, { __server: true })));
+                callback(applySavedRequestsOrder(all));
+        });
+}
+
+// Write a whole list back to the shared file on the scale through /filewrite.
+function writeServerSavedRequests(list, callback) {
+        let body = "path=" + encodeURIComponent(SAVED_REQUESTS_PATH) + "&content=" + encodeURIComponent(JSON.stringify(list, null, 2));
+        let xhr = new XMLHttpRequest();
+        xhr.addEventListener("load", function () { if (callback) callback(this.responseText, this); });
+        xhr.addEventListener("error", function () { if (callback) callback(null, this); });
+        xhr.open("POST", "/filewrite", true);
+        xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+        xhr.send(body);
+}
+
+function deleteLocalSavedRequest(name) {
+        let saved = loadLocalSavedRequests().filter(r => r.name !== name);
+        localStorage.setItem("savedRequests", JSON.stringify(saved));
+}
+
+// Remove one request from the shared file: read it back, drop the request, write the rest.
+function deleteServerSavedRequest(name, callback) {
+        loadServerSavedRequests(function (list) {
+                writeServerSavedRequests(list.filter(r => r.name !== name), callback);
+        });
+}
+
+// Remove a request from whichever store it lives in. The callback only matters for the scale,
+// where the removal has to be written back; browser removals are immediate.
+function deleteSavedRequest(req, callback) {
+        if (req.__server) deleteServerSavedRequest(req.name, callback);
+        else { deleteLocalSavedRequest(req.name); if (callback) callback("Deleted from this browser.", { status: 200 }); }
 }
 
 // Close an open chooser when clicking anywhere outside it.

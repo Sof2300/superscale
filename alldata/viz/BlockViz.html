@@ -142,6 +142,19 @@
             xhttp.send();
         }
 
+        // POST helper used to talk to the scale's command endpoints (e.g. /filewrite).
+        function postURL(url, params, cb) {
+            let body = Object.keys(params).map(function (k) {
+                return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]);
+            }).join("&");
+            let xhr = new XMLHttpRequest();
+            xhr.addEventListener("load", function () { cb(this.responseText, this); });
+            xhr.addEventListener("error", function () { cb(null, this); });
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+            xhr.send(body);
+        }
+
         window.onload = function () {
             loadDataFile();
         };
@@ -204,6 +217,70 @@
             let relative = $('#dateFilterRelative').is(':checked');
             $('#dateFrom, #dateTo').closest('label').toggle(!relative);
             $('#dateFromDays, #dateToDays').closest('label').toggle(relative);
+        }
+
+        // An <input type="date"> value as "days ago" from today, or null when it is empty.
+        function dateInputToDaysAgo(value) {
+            let d = dateInputToDay(value);
+            if (!d) return null;
+            let today = new Date();
+            today.setHours(0, 0, 0, 0);
+            return Math.round((today.getTime() - d.getTime()) / 86400000);
+        }
+
+        // Switching mode carries the current window over, so the other pair of fields is
+        // pre-filled instead of left empty: dates become "days ago" and vice versa. Both sides
+        // stay unbounded (empty) when there was nothing to carry over.
+        function onDateFilterModeChange() {
+            if ($('#dateFilterRelative').is(':checked')) {
+                let fromDays = dateInputToDaysAgo($('#dateFrom').val());
+                let toDays = dateInputToDaysAgo($('#dateTo').val());
+                $('#dateFromDays').val(fromDays === null ? "" : fromDays);
+                $('#dateToDays').val(toDays === null ? "" : toDays);
+            } else {
+                let fromDays = dayOffsetOrNull($('#dateFromDays').val());
+                let toDays = dayOffsetOrNull($('#dateToDays').val());
+                $('#dateFrom').val(fromDays === null ? "" : dayOffsetToDate(fromDays));
+                $('#dateTo').val(toDays === null ? "" : dayOffsetToDate(toDays));
+            }
+            syncDateFilterMode();
+        }
+
+        // The shared (public) list of requests lives on the scale itself. It is read at the
+        // relative URL and written through the /filewrite endpoint at its device path.
+        const SERVER_REQUESTS_URL = 'savedRequests.json';
+        const SERVER_REQUESTS_PATH = '/viz/savedRequests.json';
+
+        // Everything currently typed in the toolbar, in the shape a saved request has.
+        function buildRequestObject(name) {
+            return {
+                name: name,
+                search: $('#searchInput').val(),
+                isAnd: $('#searchLogicAnd').is(':checked'),
+                hiddenColumns: activeHiddenColumns.slice(),
+                dateFilter: collectDateFilter()
+            };
+        }
+
+        // Replace the request with the same name, or append it when it is new.
+        function upsertRequest(list, requestObject) {
+            let i = list.findIndex(r => r.name === requestObject.name);
+            if (i >= 0) list[i] = requestObject; else list.push(requestObject);
+            return list;
+        }
+
+        function parseRequestList(text) {
+            try {
+                let list = JSON.parse(text);
+                return Array.isArray(list) ? list : [];
+            } catch (e) { return []; }
+        }
+
+        function writeServerRequests(list) {
+            postURL('/filewrite', { path: SERVER_REQUESTS_PATH, content: JSON.stringify(list, null, 2) }, function (text, xhttp) {
+                if (xhttp && xhttp.status === 200) alert("Saved on the scale (shared).\n" + text);
+                else alert("Could not save on the scale.\n" + (text || ""));
+            });
         }
 
         // DataTables Global Search logic SCOPED by table ID (Matches Both Files)
@@ -323,30 +400,38 @@
         // 3. Bind events & Save Feature
         $(document).ready(function() {
             syncDateFilterMode();
-            $('#dateFilterRelative').on('change', syncDateFilterMode);
+            $('#dateFilterRelative').on('change', onDateFilterModeChange);
             $('#searchInput, #searchLogicAnd, #enableDateFilter, #dateFilterRelative, #dateFilterColumn, #dateFrom, #dateTo, #dateFromDays, #dateToDays').on('input change', function () {
                 if (dataTableInstance) dataTableInstance.draw();
             });
 
+            // Save into this browser only (private to this device).
             $('#btnSaveRequest').on('click', function() {
                 let name = $('#requestName').val().trim();
                 if (!name) { alert("Please enter a name for this request!"); return; }
 
-                let requestObject = {
-                    name: name,
-                    search: $('#searchInput').val(),
-                    isAnd: $('#searchLogicAnd').is(':checked'),
-                    hiddenColumns: activeHiddenColumns.slice(),
-                    dateFilter: collectDateFilter()
-                };
-
                 let saved = JSON.parse(localStorage.getItem('savedRequests') || "[]");
-                let existingIndex = saved.findIndex(r => r.name === name);
-                if (existingIndex >= 0) saved[existingIndex] = requestObject; // Update
-                else saved.push(requestObject); // Create new
-
+                upsertRequest(saved, buildRequestObject(name));
                 localStorage.setItem('savedRequests', JSON.stringify(saved));
-                alert(`Request "${name}" saved successfully!`);
+                alert(`Request "${name}" saved in this browser.`);
+            });
+
+            // Save onto the scale, where the request is shared with everybody.
+            $('#btnSaveRequestServer').on('click', function() {
+                let name = $('#requestName').val().trim();
+                if (!name) { alert("Please enter a name for this request!"); return; }
+
+                let requestObject = buildRequestObject(name);
+
+                // Read the shared list first, so requests saved by others are kept.
+                loadRemote(SERVER_REQUESTS_URL, function () {
+                    let list = parseRequestList(this.responseText);
+                    upsertRequest(list, requestObject);
+                    writeServerRequests(list);
+                }, function () {
+                    // No shared file on the scale yet: start a fresh list.
+                    writeServerRequests(upsertRequest([], requestObject));
+                });
             });
 
             // UPDATED TOOLTIP CLICK LISTENER
@@ -398,7 +483,8 @@
         <input type="text" id="searchInput" placeholder="Search rows (type space-separated words, use ! to exclude, e.g. 'compost !flies')...">
         <div class="save-section">
             <input type="text" id="requestName" placeholder="Name request...">
-            <button id="btnSaveRequest">Save</button>
+            <button id="btnSaveRequest" title="Saved in this browser only (private)">Save (Browser)</button>
+            <button id="btnSaveRequestServer" title="Saved on the scale, shared with everybody">Save (Scale)</button>
         </div>
     </div>
 

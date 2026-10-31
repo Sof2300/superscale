@@ -29,6 +29,20 @@
 
         .req-info { font-size: 0.85em; color: #555; margin: 0; background: #f9f9f9; padding: 4px 10px; border-radius: 4px; }
 
+        /* Requests from this browser and from the scale share the same panel, but a background tint
+           and a small badge tell them apart at a glance. */
+        .request-block.is-local { background: #eef4fb; border-color: #cadcef; }
+        .request-block.is-server { background: #fdf6e6; border-color: #ecdcb0; }
+        .src-badge { font-size: 0.7em; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; padding: 2px 8px; border-radius: 10px; }
+        .src-badge.local { background: #cfe0f0; color: #23527c; }
+        .src-badge.server { background: #f0e0b0; color: #7a5c00; }
+
+        /* Reordering: one up / one down button per panel. */
+        .move-group { display: inline-flex; gap: 2px; }
+        .move-btn { padding: 2px 7px; background: #e0e0e0; color: #555; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; line-height: 1; }
+        .move-btn:hover:not(:disabled) { background: #d0d0d0; }
+        .move-btn:disabled { opacity: .35; cursor: default; }
+
         /* Dense Table Styles */
         table.dataTable { font-size: 0.85em; width: 100%; border-collapse: collapse; }
         table.dataTable th, table.dataTable td { padding: 3px 6px; white-space: nowrap; box-sizing: border-box; border: 1px solid #ddd; text-align: left; }
@@ -91,6 +105,8 @@
         let parsedTableData = [];
         let tableFiltersMap = {};
         let blockInfoIndex = {}; // Ensure global scope for raw text mapping
+        let allSavedRequests = []; // Browser + scale requests, in the shown order
+        let dtHeadersDef = null; // Column definitions, kept so the panels can be re-rendered on move
 
         // Column choice lives inside each saved request, so every table can differ.
         function persistHiddenColumns(name, hidden) {
@@ -102,11 +118,12 @@
         }
 
         $(document).ready(function() {
-            let savedDataRaw = localStorage.getItem('savedRequests');
-            let savedRequests = savedDataRaw ? JSON.parse(savedDataRaw) : [];
-            savedRequests.sort((a, b) => a.name.localeCompare(b.name));
+            // Browser and scale requests are shown as one list: the private ones first, then the
+            // shared ones. The arrows on each panel change the order.
+            loadAllSavedRequests(function (savedRequests) {
+            allSavedRequests = savedRequests;
 
-            if(savedRequests.length === 0) {
+            if (allSavedRequests.length === 0) {
                 $('#requestsContainer').html('<p>No requests saved yet.</p>');
                 return;
             }
@@ -129,7 +146,7 @@
 
                     parsedTableData = buildTable(tdata3, orderedheaders, sums);
 
-                    let dtHeaders = parsedTableData[0].map((h, colIndex) => ({
+                    dtHeadersDef = parsedTableData[0].map((h, colIndex) => ({
                         title: h, defaultContent: "",
                         className: (h === "id" || h === "blockdate" || h === "totalharvest") ? "boldColumn" : "",
                         render: function (data, type, row) {
@@ -154,20 +171,46 @@
                         }
                     }));
 
-                    renderTablesUI(savedRequests, dtHeaders);
+                    renderTablesUI(allSavedRequests, dtHeadersDef);
                 }
             });
             xhttp.open("GET", "../data.txt");
             xhttp.send();
-
-            $(document).on("click", ".delete-btn", function () {
-                const name = $(this).data("name");
-                if (!confirm(`Delete request "${name}" ?`)) return;
-                let saved = JSON.parse(localStorage.getItem("savedRequests") || "[]");
-                saved = saved.filter(r => r.name !== name);
-                localStorage.setItem("savedRequests", JSON.stringify(saved));
-                location.reload();
             });
+
+            // Move a panel up or down and redraw the list in its new order.
+            $(document).on("click", ".move-btn", function () {
+                if (moveSavedRequest(allSavedRequests, $(this).data("key"), Number($(this).data("dir")))) {
+                    renderTablesUI(allSavedRequests, dtHeadersDef);
+                }
+            });
+
+            // Delete a panel, from this browser or from the scale, then redraw the remaining list.
+            $(document).on("click", ".delete-btn", function () {
+                let key = $(this).data("key");
+                let req = allSavedRequests.find(r => requestKey(r) === key);
+                if (!req) return;
+                if (!confirm(`Delete request "${req.name}" ${req.__server ? "from the scale" : "from this browser"} ?`)) return;
+
+                if (req.__server) {
+                    deleteSavedRequest(req, function (text, xhttp) {
+                        if (!xhttp || xhttp.status !== 200) { alert("Could not delete on the scale.\n" + (text || "")); return; }
+                        removePanel(req, key);
+                    });
+                } else {
+                    deleteSavedRequest(req);
+                    removePanel(req, key);
+                }
+            });
+
+            function removePanel(req, key) {
+                allSavedRequests = allSavedRequests.filter(r => requestKey(r) !== key);
+                if (allSavedRequests.length === 0) {
+                    $('#requestsContainer').html('<p>No requests saved yet.</p>');
+                    return;
+                }
+                renderTablesUI(allSavedRequests, dtHeadersDef);
+            }
 
             // UPDATED TOOLTIP ROW CLICK LISTENER
             $(document).on('click', 'table.dataTable tbody tr', function(e) {
@@ -259,7 +302,20 @@
             }
             return out.join('\n');
         }
+        // One up / one down button per panel; disabled at the ends of the list.
+        function moveButtonsHtml(key, index, count) {
+            return `<div class="move-group">
+                        <button class="move-btn" data-key="${key}" data-dir="-1" title="Move up" ${index === 0 ? "disabled" : ""}>&#9650;</button>
+                        <button class="move-btn" data-key="${key}" data-dir="1" title="Move down" ${index === count - 1 ? "disabled" : ""}>&#9660;</button>
+                    </div>`;
+        }
+
         function renderTablesUI(savedRequests, dtHeaders) {
+            // Redrawing the panels replaces them, so dispose the DataTables that are going away.
+            $('#requestsContainer table').each(function () {
+                if ($.fn.DataTable.isDataTable(this)) $(this).DataTable().destroy();
+            });
+
             let dtData = parsedTableData.slice(1);
             let emptyColumns = findEmptyColumns(parsedTableData[0], dtData);
             let container = $('#requestsContainer');
@@ -270,21 +326,33 @@
                 let tableId = "dt_" + idx;
                 tableFiltersMap[tableId] = req;
                 let hiddenColumns = req.hiddenColumns = req.hiddenColumns || [];
+                let isServer = !!req.__server;
+                let source = isServer ? "server" : "local";
+                let key = requestKey(req);
 
-                let html = `
-                    <div class="request-block">
-                        <div class="request-title-bar">
-                            <div class="request-title-group">
-                                <h2>${req.name}</h2>
-                                <div class="req-info">${describeRequest(req)}</div>
-                            </div>
-                            <div style="display:flex; gap:8px; align-items:center;">
+                // Delete works on both kinds. The columns chooser and the re-edit link stay for this
+                // browser's own requests only, since a request on the scale is otherwise read only.
+                let controls = "";
+                if (!isServer) controls += `
                                 <details class="col-chooser">
                                     <summary>Columns &#9662;</summary>
                                     <div class="col-chooser-panel" id="colChooserPanel_${idx}"></div>
-                                </details>
-                                <button class="delete-btn" data-name="${req.name}">Delete</button>
-                                <a href="BlockViz.html?loadReq=${encodeURIComponent(req.name)}" class="edit-btn">Re-Edit Request →</a>
+                                </details>`;
+                controls += `<button class="delete-btn" data-key="${key}">Delete</button>`;
+                if (!isServer) controls += `
+                                <a href="BlockViz.html?loadReq=${encodeURIComponent(req.name)}" class="edit-btn">Re-Edit Request →</a>`;
+
+                let html = `
+                    <div class="request-block is-${source}">
+                        <div class="request-title-bar">
+                            <div class="request-title-group">
+                                <h2>${req.name}</h2>
+                                <span class="src-badge ${source}">${isServer ? "Scale" : "Browser"}</span>
+                                <div class="req-info">${describeRequest(req)}</div>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                ${moveButtonsHtml(key, idx, savedRequests.length)}
+                                ${controls}
                             </div>
                         </div>
                         <table id="${tableId}" class="display" style="width:100%">
@@ -323,11 +391,15 @@
                 });
 
                 let $table = $('#' + tableId);
+                // Both kinds honour the columns they were saved with, but only the browser's
+                // requests can be changed from here.
                 applyColumnVisibility(parsedTableData[0], hiddenColumns, $table);
-                buildColumnChooser($("#colChooserPanel_" + idx), parsedTableData[0], hiddenColumns, function () {
-                    applyColumnVisibility(parsedTableData[0], hiddenColumns, $table);
-                    persistHiddenColumns(req.name, hiddenColumns);
-                }, emptyColumns);
+                if (!isServer) {
+                    buildColumnChooser($("#colChooserPanel_" + idx), parsedTableData[0], hiddenColumns, function () {
+                        applyColumnVisibility(parsedTableData[0], hiddenColumns, $table);
+                        persistHiddenColumns(req.name, hiddenColumns);
+                    }, emptyColumns);
+                }
 
                 setTimeout(() => {
                     if ($.fn.DataTable.isDataTable('#' + tableId)) {

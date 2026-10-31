@@ -32,6 +32,24 @@
         .request-title-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .req-info { font-size: 0.85em; color: #555; margin: 0; background: #f9f9f9; padding: 4px 10px; border-radius: 4px; }
 
+        /* Requests from this browser and from the scale share the same card, but a background tint
+           and a small badge tell them apart at a glance. */
+        .request-card.is-local { background: #eef4fb; border-color: #cadcef; }
+        .request-card.is-server { background: #fdf6e6; border-color: #ecdcb0; }
+        .src-badge { font-size: 0.7em; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; padding: 2px 8px; border-radius: 10px; }
+        .src-badge.local { background: #cfe0f0; color: #23527c; }
+        .src-badge.server { background: #f0e0b0; color: #7a5c00; }
+
+        /* Reordering: one up / one down button per card. */
+        .move-group { display: inline-flex; gap: 2px; }
+        .move-btn { padding: 2px 7px; background: #e0e0e0; color: #555; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; line-height: 1; }
+        .move-btn:hover:not(:disabled) { background: #d0d0d0; }
+        .move-btn:disabled { opacity: .35; cursor: default; }
+
+        /* Delete a card, from this browser or from the scale. */
+        .delete-btn { background: #d9534f; color: white; padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9em; }
+        .delete-btn:hover { background: #c9302c; }
+
         /* Summary Bar */
         .summary-stats { display: flex; gap: 15px; font-size: 0.85em; font-weight: bold; color: #444; }
         .stat-item { background: #f8f9fa; padding: 4px 10px; border-radius: 6px; border: 1px solid #ddd; }
@@ -83,6 +101,14 @@
             return opts.join("");
         }
 
+        // One up / one down button per card; disabled at the ends of the list.
+        function moveButtonsHtml(key, index, count) {
+            return `<div class="move-group">
+                        <button class="move-btn" data-key="${key}" data-dir="-1" title="Move up" ${index === 0 ? "disabled" : ""}>&#9650;</button>
+                        <button class="move-btn" data-key="${key}" data-dir="1" title="Move down" ${index === count - 1 ? "disabled" : ""}>&#9660;</button>
+                    </div>`;
+        }
+
         // The sorting choice lives inside each saved request, so every card can differ.
         function persistSortColumn(name, column) {
             let saved = JSON.parse(localStorage.getItem("savedRequests") || "[]");
@@ -106,12 +132,12 @@
         }
 
         $(document).ready(function() {
-            let savedDataRaw = localStorage.getItem('savedRequests');
-            let savedRequests = savedDataRaw ? JSON.parse(savedDataRaw) : [];
-            savedRequests.sort((a, b) => a.name.localeCompare(b.name));
+            // Browser and scale requests are shown as one list: the private ones first, then the
+            // shared ones. The arrows on each card change the order.
+            loadAllSavedRequests(function (savedRequests) {
             allSavedRequests = savedRequests;
 
-            if(savedRequests.length === 0) {
+            if (allSavedRequests.length === 0) {
                 $('#requestsContainer').html('<p>No requests saved yet. Go to the main view to save some.</p>');
                 return;
             }
@@ -135,11 +161,46 @@
                     parsedTableData = buildTable(tdata3, orderedheaders, sums);
 
                     // 2. Render Graphics
-                    renderGraphicUI(savedRequests);
+                    renderGraphicUI(allSavedRequests);
                 }
             });
             xhttp.open("GET", "../data.txt");
             xhttp.send();
+            });
+
+            // Move a card up or down and redraw the list in its new order.
+            $(document).on("click", ".move-btn", function () {
+                if (moveSavedRequest(allSavedRequests, $(this).data("key"), Number($(this).data("dir")))) {
+                    renderGraphicUI(allSavedRequests);
+                }
+            });
+
+            // Delete a card, from this browser or from the scale, then redraw the remaining list.
+            $(document).on("click", ".delete-btn", function () {
+                let key = $(this).data("key");
+                let req = allSavedRequests.find(r => requestKey(r) === key);
+                if (!req) return;
+                if (!confirm(`Delete request "${req.name}" ${req.__server ? "from the scale" : "from this browser"} ?`)) return;
+
+                if (req.__server) {
+                    deleteSavedRequest(req, function (text, xhttp) {
+                        if (!xhttp || xhttp.status !== 200) { alert("Could not delete on the scale.\n" + (text || "")); return; }
+                        removeCard(req, key);
+                    });
+                } else {
+                    deleteSavedRequest(req);
+                    removeCard(req, key);
+                }
+            });
+
+            function removeCard(req, key) {
+                allSavedRequests = allSavedRequests.filter(r => requestKey(r) !== key);
+                if (allSavedRequests.length === 0) {
+                    $('#requestsContainer').html('<p>No requests saved yet. Go to the main view to save some.</p>');
+                    return;
+                }
+                renderGraphicUI(allSavedRequests);
+            }
 
             // Tooltip Interaction (Fetching Raw Data & Summary Stats)
             $(document).on('mouseenter', '.block-square', function(e) {
@@ -173,7 +234,7 @@
 
             // One sorting control per card, re-rendering the cards when it changes.
             container.off("change", ".sort-select").on("change", ".sort-select", function () {
-                let req = allSavedRequests.find(r => r.name === $(this).data("name"));
+                let req = allSavedRequests.find(r => requestKey(r) === $(this).data("key"));
                 if (!req) return;
                 req.sortColumn = $(this).val();
                 persistSortColumn(req.name, req.sortColumn);
@@ -191,7 +252,14 @@
             let idxTotalH = headers.indexOf("totalharvest");
             let idxHarvCount = headers.indexOf("harvestcount");
 
-            savedRequests.forEach(req => {
+            savedRequests.forEach((req, idx) => {
+                let isServer = !!req.__server;
+                let source = isServer ? "server" : "local";
+                let key = requestKey(req);
+                // A request kept on the scale is shared and otherwise read only: no sorting control.
+                let sortHtml = isServer ? "" : `<label><select class="sort-select" data-key="${key}">${sortOptionsHtml(req.sortColumn)}</select></label>`;
+                let deleteHtml = `<button class="delete-btn" data-key="${key}">Delete</button>`;
+
                 // Filter rows for this specific request
                 let matchingRows = filterRows(dataRows, headers, req);
                 let sortIdx = req.sortColumn ? headers.indexOf(req.sortColumn) : -1;
@@ -247,14 +315,17 @@
                 let avgHarvStr = countHarvest > 0 ? (sumHarvest / countHarvest).toFixed(1) + "g" : "N/A";
 
                 let html = `
-                    <div class="request-card">
+                    <div class="request-card is-${source}">
                         <div class="request-header">
                             <div class="request-title-group">
                                 <h2 class="request-title">${req.name}</h2>
+                                <span class="src-badge ${source}">${isServer ? "Scale" : "Browser"}</span>
                                 <div class="req-info">${describeRequest(req)}</div>
                             </div>
                             <div class="request-controls">
-                                <label><select class="sort-select" data-name="${req.name}">${sortOptionsHtml(req.sortColumn)}</select></label>
+                                ${moveButtonsHtml(key, idx, savedRequests.length)}
+                                ${sortHtml}
+                                ${deleteHtml}
                                 <div class="summary-stats">
                                     <div class="stat-item">Total Blocks: ${matchingRows.length}</div>
                                     <div class="stat-item">Avg Yield: ${avgHarvStr}</div>
